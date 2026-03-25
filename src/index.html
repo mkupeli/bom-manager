@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>BOM Manager</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+:root {
+  --bg:#0a0a0d;--bg2:#101014;--sf:#161619;--sf2:#1c1c21;--sf3:#252529;--sf4:#2e2e34;
+  --brd:#2a2a30;--brd2:#363640;
+  --tx:#e5e3df;--tx2:#9a9894;--tx3:#6a6a6a;--tx4:#444;
+  --ac:#6366f1;--ac2:#818cf8;--ac3:#a5b4fc;
+  --ok:#10b981;--ok2:#34d399;--warn:#f59e0b;--err:#ef4444;
+  --info:#3b82f6;--pink:#ec4899;--purple:#8b5cf6;
+  --r:12px;--rs:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tx);height:100vh;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;user-select:none}
+.titlebar{height:38px;background:var(--bg2);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 16px;-webkit-app-region:drag;flex-shrink:0}
+.titlebar-icon{font-size:15px;margin-right:8px}.titlebar-text{font-size:11px;font-weight:600;color:var(--tx2);letter-spacing:.5px}
+.titlebar-badge{font-size:9px;color:var(--ok);background:rgba(16,185,129,.12);padding:2px 7px;border-radius:4px;margin-left:8px;font-family:'JetBrains Mono',monospace}
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:250px;background:var(--bg2);border-right:1px solid var(--brd);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:14px;border-bottom:1px solid var(--brd)}
+.sidebar-title{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);font-weight:600;margin-bottom:8px}
+.sidebar-search-wrap{position:relative}
+.sidebar-search-wrap::before{content:'⌕';position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--tx4);font-size:12px}
+.sidebar-search{width:100%;padding:7px 9px 7px 28px;background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);color:var(--tx);font-size:11px;font-family:inherit;outline:none}
+.sidebar-search:focus{border-color:var(--ac)}
+.sys-list{flex:1;overflow-y:auto;padding:6px}
+.sys-list::-webkit-scrollbar{width:3px}.sys-list::-webkit-scrollbar-thumb{background:var(--sf3);border-radius:2px}
+.sys-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rs);cursor:pointer;transition:background .12s;margin-bottom:1px}
+.sys-item:hover{background:var(--sf)}.sys-item.active{background:var(--ac)}
+.sys-item.active .sys-item-sub{color:rgba(255,255,255,.7)}
+.sys-icon-sm{font-size:18px;width:32px;height:32px;background:var(--sf2);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sys-item.active .sys-icon-sm{background:rgba(255,255,255,.15)}
+.sys-item-info{flex:1;min-width:0}
+.sys-item-name{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sys-item-sub{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace;margin-top:1px}
+.sys-item-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sidebar-footer{padding:10px;border-top:1px solid var(--brd);display:flex;gap:5px}
+.sf-btn{flex:1;padding:7px;border-radius:var(--rs);border:1px solid var(--brd);background:var(--sf);color:var(--tx2);font-size:10px;font-family:inherit;cursor:pointer;text-align:center;font-weight:500;transition:all .12s}
+.sf-btn:hover{background:var(--sf2)}.sf-btn.primary{background:var(--ac);border-color:var(--ac);color:#fff}
+.sf-btn.primary:hover{background:#5558e6}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{padding:8px 16px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:6px;background:var(--bg2);flex-shrink:0;flex-wrap:wrap}
+.tool-btn{padding:5px 10px;border-radius:var(--rs);border:1px solid var(--brd);background:var(--sf);color:var(--tx2);font-size:10px;font-family:inherit;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:4px;transition:all .12s;white-space:nowrap}
+.tool-btn:hover{background:var(--sf2);color:var(--tx)}.tool-btn.danger:hover{border-color:var(--err);color:var(--err)}
+.tool-btn.active{background:var(--ac);border-color:var(--ac);color:#fff}
+.tool-sep{width:1px;height:18px;background:var(--brd)}.tool-spacer{flex:1}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--brd);background:var(--bg2);padding:0 16px;flex-shrink:0}
+.tab-item{padding:8px 14px;font-size:11px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s}
+.tab-item:hover{color:var(--tx2)}.tab-item.active{color:var(--ac2);border-bottom-color:var(--ac)}
+.content{flex:1;overflow:auto;position:relative}.content::-webkit-scrollbar{width:5px}.content::-webkit-scrollbar-thumb{background:var(--sf3);border-radius:3px}
+
+/* SYSTEM HEADER */
+.sys-hdr{padding:20px 20px 14px;background:linear-gradient(180deg,var(--sf) 0%,transparent 100%)}
+.sys-hdr-row{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.sys-hdr-icon{font-size:32px;width:56px;height:56px;background:var(--sf2);border-radius:12px;display:flex;align-items:center;justify-content:center;border:1px solid var(--brd)}
+.sys-hdr-name{font-size:18px;font-weight:700;margin-bottom:3px}.sys-hdr-sn{font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:10px;padding:3px 8px;border-radius:5px;font-weight:500;font-family:'JetBrains Mono',monospace}
+
+/* TREE */
+.tree{padding:4px 10px 20px}
+.tn{display:flex;align-items:center;gap:5px;padding:6px 8px;cursor:pointer;border-radius:6px;transition:background .1s;margin:1px 0}
+.tn:hover{background:var(--sf)}.tn.sel{background:rgba(99,102,241,.1);outline:1px solid rgba(99,102,241,.3)}
+.ta{font-size:7px;color:var(--tx3);transition:transform .15s;display:inline-block;width:10px;text-align:center}.ta.op{transform:rotate(90deg)}
+.td{width:4px;height:4px;border-radius:50%;background:var(--sf4);margin:0 3px}
+.tl{font-size:11px;font-weight:500;flex:1}.tp{font-size:9px;color:var(--ac2);font-family:'JetBrains Mono',monospace;margin-right:4px}
+.ts{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace;margin-right:4px}
+.tq{font-size:8px;color:var(--warn);font-weight:600;background:rgba(245,158,11,.1);padding:1px 4px;border-radius:3px;margin-right:4px}
+.tj{font-size:8px;color:var(--info);font-weight:600;background:rgba(59,130,246,.1);padding:1px 5px;border-radius:3px}
+.tc{font-size:8px;color:var(--tx4);background:var(--sf2);padding:1px 5px;border-radius:3px;font-family:'JetBrains Mono',monospace}
+
+/* RIGHT PANEL */
+.rpanel{width:300px;background:var(--bg2);border-left:1px solid var(--brd);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.rpanel.hidden{display:none}
+.rp-hdr{padding:12px 14px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between}
+.rp-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)}
+.rp-close{width:26px;height:26px;border-radius:5px;border:none;background:var(--sf);color:var(--tx3);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+.rp-close:hover{background:var(--sf2);color:var(--tx)}
+.rp-body{flex:1;overflow-y:auto;padding:14px}.rp-body::-webkit-scrollbar{width:3px}.rp-body::-webkit-scrollbar-thumb{background:var(--sf3);border-radius:2px}
+.rp-acts{padding:10px 14px;border-top:1px solid var(--brd);display:flex;gap:6px}
+.rp-btn{flex:1;padding:7px;border-radius:var(--rs);border:none;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer}
+.rp-btn.save{background:var(--ac);color:#fff}.rp-btn.save:hover{background:#5558e6}
+.rp-btn.cancel{background:var(--sf);color:var(--tx2);border:1px solid var(--brd)}.rp-btn.cancel:hover{background:var(--sf2)}
+.field{margin-bottom:12px}
+.field-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);font-weight:500;margin-bottom:4px;display:block}
+.field-input{width:100%;padding:7px 9px;background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);color:var(--tx);font-size:11px;font-family:inherit;outline:none}
+.field-input:focus{border-color:var(--ac)}.field-input::placeholder{color:var(--tx4)}.field-input.mono{font-family:'JetBrains Mono',monospace}
+select.field-input{cursor:pointer}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--sf);border:1px solid var(--brd2);border-radius:14px;padding:22px;width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.modal-title{font-size:15px;font-weight:700;margin-bottom:4px}.modal-desc{font-size:11px;color:var(--tx2);margin-bottom:18px;line-height:1.5}
+.modal-btns{display:flex;gap:6px;justify-content:flex-end;margin-top:18px}
+.modal-btn{padding:7px 16px;border-radius:var(--rs);border:1px solid var(--brd);background:var(--sf2);color:var(--tx);font-size:11px;font-weight:600;font-family:inherit;cursor:pointer}
+.modal-btn:hover{background:var(--sf3)}.modal-btn.primary{background:var(--ac);border-color:var(--ac);color:#fff}.modal-btn.danger{background:var(--err);border-color:var(--err);color:#fff}
+
+/* REVISIONS */
+.rev-item{padding:8px 10px;border-radius:var(--rs);background:var(--sf);border:1px solid var(--brd);margin-bottom:4px}
+.rev-hdr{display:flex;justify-content:space-between;margin-bottom:3px}
+.rev-tag{font-size:9px;font-weight:600;color:var(--purple);font-family:'JetBrains Mono',monospace}
+.rev-time{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace}
+.rev-desc{font-size:10px;color:var(--tx2);line-height:1.4}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 18px;background:var(--sf2);border:1px solid var(--brd2);border-radius:var(--rs);font-size:11px;color:var(--tx);z-index:300;box-shadow:0 4px 24px rgba(0,0,0,.4);animation:ti .3s ease;display:flex;align-items:center;gap:6px}
+.toast.success{border-left:3px solid var(--ok)}.toast.error{border-left:3px solid var(--err)}.toast.info{border-left:3px solid var(--info)}
+@keyframes ti{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* SEARCH */
+.search-bar{display:flex;align-items:center;gap:6px;flex:1;max-width:400px}
+.search-bar input{flex:1;padding:5px 9px;background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);color:var(--tx);font-size:11px;font-family:inherit;outline:none}
+.search-bar input:focus{border-color:var(--ac)}
+.search-info{font-size:10px;color:var(--tx3);white-space:nowrap}
+.tn.search-hit{background:rgba(245,158,11,.12);outline:1px solid rgba(245,158,11,.3)}
+.tn.search-hit .tl{color:#f59e0b}
+.search-nav-btn{padding:3px 8px;border-radius:4px;border:1px solid var(--brd);background:var(--sf);color:var(--tx2);font-size:10px;cursor:pointer}
+.search-nav-btn:hover{background:var(--sf2)}
+
+/* COMPARE */
+.cmp-layout{display:flex;height:100%;overflow:hidden}
+.cmp-side{flex:1;overflow-y:auto;padding:10px;border-right:1px solid var(--brd)}
+.cmp-side:last-child{border-right:none}
+.cmp-side-hdr{font-size:11px;font-weight:600;color:var(--tx2);padding:6px 8px;background:var(--sf);border-radius:var(--rs);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.cmp-row{display:flex;align-items:center;gap:5px;padding:5px 8px;font-size:11px;border-radius:4px;margin:1px 0}
+.cmp-row.added{background:rgba(16,185,129,.1);color:var(--ok2)}
+.cmp-row.removed{background:rgba(239,68,68,.1);color:var(--err)}
+.cmp-row.changed{background:rgba(245,158,11,.1);color:var(--warn)}
+.cmp-row.unchanged{color:var(--tx3)}
+.cmp-pn{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace;margin-left:auto}
+.cmp-badge{font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px}
+.cmp-badge.add{background:rgba(16,185,129,.15);color:var(--ok)}
+.cmp-badge.rem{background:rgba(239,68,68,.15);color:var(--err)}
+.cmp-badge.chg{background:rgba(245,158,11,.15);color:var(--warn)}
+.cmp-summary{display:flex;gap:12px;padding:10px 16px;background:var(--sf);border-bottom:1px solid var(--brd);font-size:11px}
+.cmp-stat{display:flex;align-items:center;gap:4px}
+.cmp-dot{width:8px;height:8px;border-radius:50%}
+.cmp-select{padding:5px 9px;background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);color:var(--tx);font-size:11px;font-family:inherit;outline:none;cursor:pointer}
+.cmp-select:focus{border-color:var(--ac)}
+
+/* DRAG & DROP */
+.tn.drag-over{border-top:2px solid var(--ac);margin-top:-1px}
+.tn.drag-over-into{background:rgba(99,102,241,.15);outline:1px dashed var(--ac)}
+.tn.dragging{opacity:.4}
+.tn .drag-handle{cursor:grab;color:var(--tx4);font-size:10px;margin-right:2px;opacity:0;transition:opacity .12s}
+.tn:hover .drag-handle{opacity:1}
+
+/* MULTI-SELECT & BULK */
+.tn.multi-sel{background:rgba(99,102,241,.12);outline:1px solid rgba(99,102,241,.25)}
+.bulk-bar{display:flex;align-items:center;gap:8px;padding:6px 16px;background:var(--ac);color:#fff;font-size:11px;font-weight:500}
+.bulk-bar button{padding:4px 10px;border-radius:var(--rs);border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:10px;cursor:pointer;font-family:inherit}
+.bulk-bar button:hover{background:rgba(255,255,255,.2)}
+.bulk-bar button.danger{border-color:rgba(239,68,68,.5);background:rgba(239,68,68,.2)}
+
+/* DASHBOARD */
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:16px}
+.dash-card{background:var(--sf);border:1px solid var(--brd);border-radius:var(--r);padding:16px}
+.dash-card-title{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);margin-bottom:8px;font-weight:600}
+.dash-big{font-size:28px;font-weight:700;color:var(--tx);margin-bottom:4px}
+.dash-sub{font-size:10px;color:var(--tx3)}
+.dash-bar{display:flex;align-items:center;gap:8px;margin:4px 0}
+.dash-bar-label{font-size:10px;color:var(--tx2);width:100px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.dash-bar-track{flex:1;height:6px;background:var(--sf3);border-radius:3px;overflow:hidden}
+.dash-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+.dash-bar-val{font-size:9px;color:var(--tx3);width:30px;text-align:right;font-family:'JetBrains Mono',monospace}
+.dash-list-item{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:10px;color:var(--tx2);border-bottom:1px solid rgba(255,255,255,.03)}
+.dash-list-item:last-child{border:none}
+.dash-warn-dot{width:6px;height:6px;border-radius:50%;background:var(--warn);flex-shrink:0}
+
+/* EMPTY */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:40px}
+.empty-icon{font-size:48px;margin-bottom:16px;opacity:.2}.empty-title{font-size:15px;font-weight:600;color:var(--tx2);margin-bottom:6px}
+.empty-desc{font-size:12px;color:var(--tx3);text-align:center;line-height:1.6;max-width:340px;margin-bottom:16px}
+
+/* EXCEL PREVIEW */
+.xlsx-preview{max-height:300px;overflow:auto;border:1px solid var(--brd);border-radius:var(--rs);margin:10px 0}
+.xlsx-preview table{width:100%;border-collapse:collapse;font-size:10px}
+.xlsx-preview th{background:var(--sf2);padding:5px 8px;text-align:left;font-weight:600;position:sticky;top:0;border-bottom:1px solid var(--brd)}
+.xlsx-preview td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-family:'JetBrains Mono',monospace;font-size:9px}
+.xlsx-preview tr:hover td{background:var(--sf)}
+
+/* VISUALIZATION */
+.viz-container{width:100%;height:100%;position:relative;overflow:hidden;background:var(--bg)}
+.viz-container svg{width:100%;height:100%}
+.viz-controls{position:absolute;top:12px;right:12px;display:flex;gap:4px;z-index:10}
+.viz-btn{padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:var(--sf);color:var(--tx2);font-size:10px;font-family:inherit;cursor:pointer}
+.viz-btn:hover{background:var(--sf2);color:var(--tx)}
+.viz-legend{position:absolute;bottom:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);padding:10px;font-size:9px;color:var(--tx2);z-index:10}
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <span class="titlebar-icon">🔧</span>
+  <span class="titlebar-text">BOM MANAGER v2.0</span>
+  <span class="titlebar-badge">OFFLINE</span>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Sistemler</div>
+      <div class="sidebar-search-wrap">
+        <input class="sidebar-search" id="sysSearch" placeholder="Sistem ara..." oninput="filterSystems()">
+      </div>
+    </div>
+    <div class="sys-list" id="sysList"></div>
+    <div class="sidebar-footer">
+      <button class="sf-btn primary" onclick="showAddSystemModal()">+ Yeni</button>
+      <button class="sf-btn" onclick="showImportMenu()">İçe Aktar</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div id="mainContent" style="display:flex;flex-direction:column;height:100%"></div>
+  </div>
+
+  <div class="rpanel hidden" id="rpanel">
+    <div class="rp-hdr"><span class="rp-title" id="rpTitle">Detay</span><button class="rp-close" onclick="closeRP()">✕</button></div>
+    <div class="rp-body" id="rpBody"></div>
+    <div class="rp-acts" id="rpActs"></div>
+  </div>
+</div>
+
+<div id="modalC"></div>
+<div id="toastC"></div>
+
+<script>
+// ═══════ STATE ═══════
+let S = { systems:[], revisions:[], selSys:null, selNode:null, expanded:{}, tab:"tree", vizMode:"org" };
+
+const DEFAULT_SYS = [
+  { id:"sys-001",name:"Çok Fonksiyonlu Radar Sistemi",type:"Radar",serialNo:"RDR-2026-A0147",status:"Aktif",icon:"📡",revision:"Rev-C",
+    children:[
+      {id:"ant-001",name:"Anten Alt Sistemi",partNo:"ANT-400",serialNo:"ANT-S-00291",qty:1,jiraKey:"",children:[
+        {id:"ae-001",name:"T/R Modül",partNo:"TRM-110",serialNo:"TRM-B-10441",qty:64,jiraKey:"",children:[]},
+        {id:"ae-002",name:"Besleme Ağı",partNo:"FDN-220",serialNo:"FDN-C-00087",qty:1,jiraKey:"",children:[]},
+        {id:"ae-003",name:"Radome",partNo:"RDM-050",serialNo:"RDM-D-00034",qty:1,jiraKey:"",children:[]},
+        {id:"ae-004",name:"Pedestal",partNo:"PDS-300",serialNo:"PDS-E-00112",qty:1,jiraKey:"",children:[]},
+      ]},
+      {id:"rcv-001",name:"Alıcı/Verici Alt Sistemi",partNo:"RCV-500",serialNo:"RCV-S-00183",qty:1,jiraKey:"",children:[
+        {id:"rc-001",name:"LNA",partNo:"LNA-010",serialNo:"LNA-F-20087",qty:4,jiraKey:"",children:[]},
+        {id:"rc-002",name:"SSPA",partNo:"SPA-020",serialNo:"SPA-G-15039",qty:4,jiraKey:"",children:[]},
+        {id:"rc-003",name:"Frekans Sentezleyici",partNo:"FSY-030",serialNo:"FSY-H-00441",qty:1,jiraKey:"",children:[]},
+      ]},
+      {id:"sp-001",name:"Sinyal İşleme",partNo:"SPI-600",serialNo:"SPI-S-00074",qty:1,jiraKey:"",children:[
+        {id:"sp-011",name:"FPGA Kartı",partNo:"FPG-100",serialNo:"FPG-K-30112",qty:2,jiraKey:"",children:[]},
+        {id:"sp-012",name:"ADC/DAC",partNo:"ADC-200",serialNo:"ADC-L-40087",qty:4,jiraKey:"",children:[]},
+        {id:"sp-013",name:"DSP Modülü",partNo:"DSP-300",serialNo:"DSP-M-50034",qty:2,jiraKey:"",children:[]},
+      ]},
+      {id:"pw-001",name:"Güç Besleme",partNo:"PWR-700",serialNo:"PWR-S-00056",qty:1,jiraKey:"",children:[
+        {id:"pw-011",name:"AC/DC Konvertör",partNo:"ACD-010",serialNo:"ACD-N-60019",qty:2,jiraKey:"",children:[]},
+        {id:"pw-012",name:"UPS",partNo:"UPS-020",serialNo:"UPS-P-70023",qty:1,jiraKey:"",children:[]},
+      ]},
+      {id:"cc-001",name:"Komuta Kontrol",partNo:"KKK-800",serialNo:"KKK-S-00019",qty:1,jiraKey:"",children:[
+        {id:"cc-011",name:"Operatör Ekranı",partNo:"OPE-010",serialNo:"OPE-R-90014",qty:2,jiraKey:"",children:[]},
+      ]},
+    ]},
+  { id:"sys-002",name:"Elektronik Harp Sistemi",type:"EW",serialNo:"EHR-2026-B0063",status:"Üretimde",icon:"⚡",revision:"Rev-A",
+    children:[
+      {id:"ew-det",name:"Tespit Alt Sistemi",partNo:"TES-100",serialNo:"TES-S-01122",qty:1,jiraKey:"",children:[
+        {id:"ew-d01",name:"Geniş Bant Alıcı",partNo:"GBA-010",serialNo:"GBA-A-11034",qty:2,jiraKey:"",children:[]},
+        {id:"ew-d02",name:"DF Anten Dizisi",partNo:"DFA-020",serialNo:"DFA-B-12098",qty:1,jiraKey:"",children:[]},
+        {id:"ew-d03",name:"DRFM",partNo:"DRF-030",serialNo:"DRF-C-13045",qty:1,jiraKey:"",children:[]},
+      ]},
+      {id:"ew-jam",name:"Karıştırma",partNo:"KRS-200",serialNo:"KRS-S-02087",qty:1,jiraKey:"",children:[
+        {id:"ew-j01",name:"Karıştırıcı Verici",partNo:"KRV-010",serialNo:"KRV-D-21076",qty:2,jiraKey:"",children:[]},
+        {id:"ew-j02",name:"Karıştırma Anten",partNo:"KAG-020",serialNo:"KAG-E-22013",qty:1,jiraKey:"",children:[]},
+      ]},
+    ]},
+  { id:"sys-003",name:"Taktik Haberleşme Sistemi",type:"Haberleşme",serialNo:"THS-2026-C0215",status:"Test",icon:"🔗",revision:"Rev-B",
+    children:[
+      {id:"cm-rf",name:"RF Alt Sistemi",partNo:"RFS-100",serialNo:"RFS-S-05067",qty:1,jiraKey:"",children:[
+        {id:"cm-r01",name:"SDR Telsiz",partNo:"SDR-010",serialNo:"SDR-A-51034",qty:4,jiraKey:"",children:[]},
+        {id:"cm-r02",name:"Çok Bantlı Anten",partNo:"CBA-030",serialNo:"CBA-C-53012",qty:2,jiraKey:"",children:[]},
+      ]},
+      {id:"cm-net",name:"Ağ Yönetim",partNo:"AYB-200",serialNo:"AYB-S-06034",qty:1,jiraKey:"",children:[
+        {id:"cm-n01",name:"Kripto Modülü",partNo:"KRP-010",serialNo:"KRP-D-61098",qty:2,jiraKey:"",children:[]},
+        {id:"cm-n02",name:"Link 16 Terminali",partNo:"L16-030",serialNo:"L16-F-63021",qty:1,jiraKey:"",children:[]},
+      ]},
+    ]},
+  { id:"sys-004",name:"Elektro-Optik Sistem",type:"EO",serialNo:"EOS-2026-D0089",status:"Bakımda",icon:"🔭",revision:"Rev-A",
+    children:[
+      {id:"eo-sen",name:"Sensör Kafası",partNo:"SNK-100",serialNo:"SNK-S-08045",qty:1,jiraKey:"",children:[
+        {id:"eo-s01",name:"Termal Kamera",partNo:"TKM-010",serialNo:"TKM-A-81023",qty:1,jiraKey:"",children:[]},
+        {id:"eo-s02",name:"Gündüz Kamerası",partNo:"GKM-020",serialNo:"GKM-B-82067",qty:1,jiraKey:"",children:[]},
+        {id:"eo-s03",name:"Lazer Mesafe Ölçer",partNo:"LMO-030",serialNo:"LMO-C-83041",qty:1,jiraKey:"",children:[]},
+      ]},
+      {id:"eo-proc",name:"Görüntü İşleme",partNo:"GIU-200",serialNo:"GIU-S-09023",qty:1,jiraKey:"",children:[
+        {id:"eo-p01",name:"Video Tracker",partNo:"VTK-010",serialNo:"VTK-E-91011",qty:1,jiraKey:"",children:[]},
+        {id:"eo-p02",name:"Füzyon Modülü",partNo:"GFM-020",serialNo:"GFM-F-92088",qty:1,jiraKey:"",children:[]},
+      ]},
+    ]},
+];
+
+// ═══════ HELPERS ═══════
+function gid(){return 'id-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function cnt(n){if(!n.children?.length)return 0;return n.children.reduce((s,c)=>s+1+cnt(c),0)}
+function find(nodes,id){for(const n of nodes){if(n.id===id)return n;if(n.children?.length){const f=find(n.children,id);if(f)return f}}return null}
+function rm(nodes,id){for(let i=0;i<nodes.length;i++){if(nodes[i].id===id){nodes.splice(i,1);return true}if(nodes[i].children?.length&&rm(nodes[i].children,id))return true}return false}
+function stColor(s){return{Aktif:"#10b981",Üretimde:"#f59e0b",Test:"#8b5cf6",Bakımda:"#ef4444",Depo:"#6b7280"}[s]||"#6b7280"}
+function toast(m,t="success"){const e=document.createElement("div");e.className=`toast ${t}`;e.textContent=m;document.getElementById("toastC").appendChild(e);setTimeout(()=>e.remove(),3000)}
+function addRev(a,d){S.revisions.unshift({id:gid(),timestamp:Date.now(),action:a,detail:d});if(S.revisions.length>200)S.revisions=S.revisions.slice(0,200)}
+async function persist(){await window.api.saveData({systems:S.systems,revisions:S.revisions})}
+
+// ═══════ INIT ═══════
+async function init(){
+  const d=await window.api.loadData();
+  if(d.systems?.length){S.systems=d.systems;S.revisions=d.revisions||[]}
+  else{S.systems=DEFAULT_SYS;S.revisions=[{id:"r0",timestamp:Date.now(),action:"Başlatıldı",detail:"4 varsayılan sistem"}];await persist()}
+  renderSidebar();renderMain();
+}
+
+// ═══════ SIDEBAR ═══════
+function renderSidebar(){
+  const q=(document.getElementById("sysSearch")?.value||"").toLowerCase();
+  document.getElementById("sysList").innerHTML=S.systems.filter(s=>!q||s.name.toLowerCase().includes(q)||s.serialNo.toLowerCase().includes(q)).map(s=>`
+    <div class="sys-item ${S.selSys===s.id?'active':''}" onclick="selSys('${s.id}')">
+      <div class="sys-icon-sm">${s.icon}</div>
+      <div class="sys-item-info"><div class="sys-item-name">${s.name}</div><div class="sys-item-sub">${s.serialNo}</div></div>
+      <div class="sys-item-dot" style="background:${stColor(s.status)}"></div>
+    </div>`).join("");
+}
+function filterSystems(){renderSidebar()}
+function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";const sys=S.systems.find(s=>s.id===id);if(sys)sys.children.forEach(c=>{S.expanded[c.id]=true});renderSidebar();renderMain();closeRP()}
+
+// ═══════ MAIN ═══════
+function renderMain(){
+  const el=document.getElementById("mainContent");
+  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.0</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  el.innerHTML=`
+    <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div><div class="sys-hdr-sn">S/N: ${sys.serialNo}</div></div></div>
+      <div class="chips"><span class="chip" style="color:${stColor(sys.status)};background:${stColor(sys.status)}18">${sys.status}</span><span class="chip" style="background:var(--sf2);color:var(--tx2)">${sys.type}</span><span class="chip" style="background:var(--sf2);color:var(--tx3)">${cnt(sys)} parça</span><span class="chip" style="background:rgba(139,92,246,.12);color:var(--purple)">${sys.revision||'Rev-A'}</span></div></div>
+    <div class="tab-bar">
+      <div class="tab-item ${S.tab==='tree'?'active':''}" onclick="switchTab('tree')">🌳 Ürün Ağacı</div>
+      <div class="tab-item ${S.tab==='org'?'active':''}" onclick="switchTab('org')">📊 Org Chart</div>
+      <div class="tab-item ${S.tab==='graph'?'active':''}" onclick="switchTab('graph')">🔗 Graf</div>
+      <div class="tab-item ${S.tab==='rev'?'active':''}" onclick="switchTab('rev')">📝 Revizyonlar</div>
+      <div class="tab-item ${S.tab==='compare'?'active':''}" onclick="switchTab('compare')">🔀 Karşılaştır</div>
+      <div class="tab-item ${S.tab==='dashboard'?'active':''}" onclick="switchTab('dashboard')">📈 Dashboard</div>
+    </div>
+    <div class="toolbar" id="toolbarArea"></div>
+    <div class="content" id="tabContent"></div>`;
+  renderToolbar();renderTab();
+}
+
+function renderToolbar(){
+  const tb=document.getElementById("toolbarArea");if(!tb)return;
+  if(S.tab==='tree'){
+    const bulkHtml=S.multiSel&&S.multiSel.length>0?`<div class="bulk-bar"><span>${S.multiSel.length} seçili</span><button onclick="bulkEditQty()">Adet Güncelle</button><button onclick="bulkEditJira()">Jira Key Ata</button><button class="danger" onclick="bulkDelete()">Sil</button><button onclick="clearMultiSel()">✕ İptal</button></div>`:'';
+    tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="expandAll()">▼ Aç</button><button class="tool-btn" onclick="collapseAll()">▶ Kapat</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no, seri no, Jira)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJira()">📄 Jira CSV</button><button class="tool-btn" onclick="exportJSON()">💾 JSON</button>`;
+    if(S.searchQuery)setTimeout(()=>{const el=document.getElementById('treeSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
+  } else if(S.tab==='org'||S.tab==='graph'){
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Fareyle sürükleyerek gezinebilirsiniz</span><div class="tool-spacer"></div>`;
+  } else if(S.tab==='compare'){
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">İki sistemi karşılaştırın</span><div class="tool-spacer"></div>`;
+  } else { tb.innerHTML=''; }
+}
+
+function switchTab(t){S.tab=t;renderMain()}
+
+function renderTab(){
+  const el=document.getElementById("tabContent");if(!el)return;
+  if(S.tab==='tree')renderTree(el);
+  else if(S.tab==='org')renderOrgChart(el);
+  else if(S.tab==='graph')renderForceGraph(el);
+  else if(S.tab==='compare')renderCompare(el);
+  else if(S.tab==='dashboard')renderDashboard(el);
+  else renderRevisions(el);
+}
+
+// ═══════ TREE VIEW ═══════
+S.multiSel=[];S.dragId=null;
+function renderTree(c){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;c.innerHTML='<div class="tree" id="treeContainer">'+rnodes(sys.children,0)+'</div>';updateSearchInfo()}
+function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of nodes){const has=n.children?.length>0,op=S.expanded[n.id],sel=S.selNode===n.id;
+  const isHit=S.searchHits&&S.searchHits.includes(n.id);const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;
+  const isMulti=S.multiSel.includes(n.id);
+  h+=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px${isCur?';outline:2px solid #f59e0b;outline-offset:-2px':''}" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;
+  h+=`<span class="drag-handle">⠿</span>`;
+  h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;
+  h+=`<span class="tl">${n.name}</span>`;if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;
+  h+=`<span class="ts">${n.serialNo}</span>`;if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;
+  if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;if(has)h+=`<span class="tc">${n.children.length}</span>`;
+  h+=`</div>`;if(op&&has)h+=rnodes(n.children,d+1)}return h}
+
+// ═══════ TREE SEARCH ═══════
+S.searchQuery='';S.searchHits=[];S.searchIdx=0;
+function searchTree(q){
+  S.searchQuery=q;S.searchHits=[];S.searchIdx=0;
+  if(!q||q.length<2){renderTab();return}
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const ql=q.toLowerCase();
+  // Find all matching nodes
+  const walkFind=(nodes)=>{for(const n of nodes){
+    if((n.name||'').toLowerCase().includes(ql)||(n.partNo||'').toLowerCase().includes(ql)||(n.serialNo||'').toLowerCase().includes(ql)||(n.jiraKey||'').toLowerCase().includes(ql)){S.searchHits.push(n.id)}
+    if(n.children?.length)walkFind(n.children);
+  }};
+  walkFind(sys.children);
+  // Expand parents of all hits
+  if(S.searchHits.length>0){
+    const expandParents=(nodes,path)=>{for(const n of nodes){
+      const curPath=[...path,n.id];
+      if(S.searchHits.includes(n.id)){curPath.slice(0,-1).forEach(id=>{S.expanded[id]=true})}
+      if(n.children?.length)expandParents(n.children,curPath);
+    }};
+    expandParents(sys.children,[]);
+  }
+  renderTab();
+  if(S.searchHits.length>0)scrollToHit();
+}
+function searchNav(dir){
+  if(!S.searchHits.length)return;
+  S.searchIdx=(S.searchIdx+dir+S.searchHits.length)%S.searchHits.length;
+  renderTab();scrollToHit();
+}
+function searchKeyNav(e){if(e.key==='Enter'){e.preventDefault();searchNav(e.shiftKey?-1:1)}if(e.key==='Escape'){S.searchQuery='';S.searchHits=[];S.searchIdx=0;renderTab()}}
+function scrollToHit(){
+  const id=S.searchHits[S.searchIdx];if(!id)return;
+  setTimeout(()=>{const el=document.getElementById('tn-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},50);
+}
+function updateSearchInfo(){
+  const el=document.getElementById('searchInfo');if(!el)return;
+  if(!S.searchQuery||S.searchQuery.length<2){el.textContent='';return}
+  el.textContent=S.searchHits.length>0?`${S.searchIdx+1}/${S.searchHits.length}`:'Sonuç yok';
+}
+function tog(id){S.expanded[id]=!S.expanded[id];renderTab()}
+function selNode(e,id){
+  e.stopPropagation();
+  if(e.ctrlKey||e.metaKey){
+    // Multi-select with Ctrl+Click
+    const idx=S.multiSel.indexOf(id);
+    if(idx>=0)S.multiSel.splice(idx,1);else S.multiSel.push(id);
+    renderToolbar();renderTab();return;
+  }
+  S.multiSel=[];S.selNode=id;renderToolbar();renderTab();showNodeRP(id);
+}
+function clearMultiSel(){S.multiSel=[];renderToolbar();renderTab()}
+function expandAll(){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const w=ns=>ns.forEach(n=>{if(n.children?.length){S.expanded[n.id]=true;w(n.children)}});w(sys.children);renderTab()}
+function collapseAll(){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const w=ns=>ns.forEach(n=>{S.expanded[n.id]=false;if(n.children?.length)w(n.children)});w(sys.children);renderTab()}
+
+// ═══════ DRAG & DROP ═══════
+function dragStart(e,id){S.dragId=id;e.dataTransfer.effectAllowed='move';e.target.classList.add('dragging')}
+function dragOver(e,targetId){
+  e.preventDefault();e.stopPropagation();
+  if(S.dragId===targetId)return;
+  document.querySelectorAll('.drag-over,.drag-over-into').forEach(el=>{el.classList.remove('drag-over','drag-over-into')});
+  const el=document.getElementById('tn-'+targetId);if(!el)return;
+  const rect=el.getBoundingClientRect();const y=e.clientY-rect.top;
+  if(y<rect.height*0.3){el.classList.add('drag-over')}
+  else{el.classList.add('drag-over-into')}
+}
+function dragLeave(e){e.target.classList.remove('drag-over','drag-over-into')}
+function dragEnd(e){S.dragId=null;document.querySelectorAll('.dragging,.drag-over,.drag-over-into').forEach(el=>{el.classList.remove('dragging','drag-over','drag-over-into')})}
+async function dropNode(e,targetId){
+  e.preventDefault();e.stopPropagation();
+  if(!S.dragId||S.dragId===targetId)return;
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  // Prevent dropping parent into its own child
+  const dragNode=find(sys.children,S.dragId);if(!dragNode)return;
+  const isChild=(node,parentId)=>{if(node.id===parentId)return true;if(node.children)for(const c of node.children){if(isChild(c,parentId))return true};return false};
+  if(isChild(dragNode,targetId))return;
+  const el=document.getElementById('tn-'+targetId);
+  const isInto=el&&el.classList.contains('drag-over-into');
+  // Remove from old location
+  rm(sys.children,S.dragId);
+  if(isInto){
+    // Drop as child of target
+    const target=find(sys.children,targetId);
+    if(target){if(!target.children)target.children=[];target.children.push(dragNode);S.expanded[targetId]=true}
+  } else {
+    // Drop as sibling before target
+    const insertBefore=(nodes)=>{for(let i=0;i<nodes.length;i++){if(nodes[i].id===targetId){nodes.splice(i,0,dragNode);return true}if(nodes[i].children?.length&&insertBefore(nodes[i].children))return true}return false};
+    insertBefore(sys.children);
+  }
+  addRev("Taşındı",`${dragNode.name} → ${isInto?'altına':'önüne'}`);
+  await persist();S.dragId=null;renderMain();toast("Parça taşındı");
+}
+
+// ═══════ BULK EDIT ═══════
+function bulkEditQty(){
+  if(!S.multiSel.length)return;
+  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Toplu Adet Güncelle</div><div class="modal-desc">${S.multiSel.length} parça seçili</div>
+    <div class="field"><label class="field-label">Yeni Adet</label><input class="field-input mono" id="bulk-qty" type="number" min="1" value="1"></div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="applyBulkQty()">Uygula</button></div></div></div>`;
+}
+async function applyBulkQty(){
+  const qty=parseInt(document.getElementById('bulk-qty').value)||1;
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  let count=0;
+  for(const id of S.multiSel){const n=find(sys.children,id);if(n){n.qty=qty;count++}}
+  addRev("Toplu adet",`${count} parça → ×${qty}`);await persist();closeModal();S.multiSel=[];renderMain();toast(`${count} parça güncellendi`);
+}
+function bulkEditJira(){
+  if(!S.multiSel.length)return;
+  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Toplu Jira Key Ata</div><div class="modal-desc">${S.multiSel.length} parça seçili</div>
+    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="bulk-jira" placeholder="PROJ-1234"></div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="applyBulkJira()">Uygula</button></div></div></div>`;
+}
+async function applyBulkJira(){
+  const jira=document.getElementById('bulk-jira').value.trim();
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  let count=0;
+  for(const id of S.multiSel){const n=find(sys.children,id);if(n){n.jiraKey=jira;count++}}
+  addRev("Toplu Jira",`${count} parça → ${jira}`);await persist();closeModal();S.multiSel=[];renderMain();toast(`${count} parça güncellendi`);
+}
+function bulkDelete(){
+  if(!S.multiSel.length)return;
+  showModal("Toplu Sil",`<b>${S.multiSel.length}</b> parça silinecek?`,[{text:"İptal"},{text:"Sil",cls:"danger",action:async()=>{
+    const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+    let count=0;for(const id of S.multiSel){if(rm(sys.children,id))count++}
+    addRev("Toplu silme",`${count} parça`);await persist();S.multiSel=[];closeRP();renderMain();toast(`${count} parça silindi`,"info");
+  }}]);
+}
+
+// ═══════ ORG CHART VISUALIZATION ═══════
+function renderOrgChart(container) {
+  const sys = S.systems.find(s => s.id === S.selSys);
+  if (!sys) return;
+  const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true };
+
+  const nodeW = 200, nodeH = 72, gapX = 30, gapY = 90;
+  const positions = [];
+  let maxX = 0, maxY = 0;
+
+  function layoutTree(node, depth) {
+    if (!node.children || node.children.length === 0) {
+      const x = maxX; maxX += nodeW + gapX;
+      const y = depth * (nodeH + gapY);
+      if (y + nodeH > maxY) maxY = y + nodeH;
+      positions.push({ node, x, y, w: nodeW, h: nodeH });
+      return { x: x + nodeW / 2, left: x, right: x + nodeW };
+    }
+    const cp = node.children.map(c => layoutTree(c, depth + 1));
+    const left = Math.min(...cp.map(c => c.left)), right = Math.max(...cp.map(c => c.right));
+    const cx = (left + right) / 2 - nodeW / 2;
+    const y = depth * (nodeH + gapY);
+    if (y + nodeH > maxY) maxY = y + nodeH;
+    positions.push({ node, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x) });
+    return { x: cx + nodeW / 2, left, right };
+  }
+  layoutTree(root, 0);
+
+  const pad = 80;
+  const svgW = maxX + pad * 2, svgH = maxY + pad * 2 + gapY;
+
+  // Build SVG content string (inner group only)
+  let inner = '';
+  inner += `<defs><filter id="glow"><feGaussianBlur stdDeviation="4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient></defs>`;
+
+  for (const p of positions) {
+    if (p.childCenters) {
+      const fx = p.x + p.w / 2, fy = p.y + p.h;
+      for (const cx of p.childCenters) {
+        const my = fy + gapY / 2;
+        inner += `<path d="M${fx},${fy} C${fx},${my} ${cx},${my} ${cx},${fy+gapY}" fill="none" stroke="#3a3a44" stroke-width="2" stroke-linecap="round"/>`;
+      }
+    }
+  }
+
+  for (const p of positions) {
+    const isR = p.node._isRoot;
+    const fill = isR ? 'url(#rootGrad)' : '#1c1c21';
+    const stroke = isR ? '#818cf8' : '#2e2e34';
+    const tc = isR ? '#fff' : '#e5e3df';
+    const sc = isR ? 'rgba(255,255,255,0.7)' : '#818cf8';
+    const sc2 = isR ? 'rgba(255,255,255,0.5)' : '#555';
+    inner += `<g>`;
+    inner += `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
+    inner += `<text x="${p.x+p.w/2}" y="${p.y+24}" text-anchor="middle" fill="${tc}" font-size="13" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
+    if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+42}" text-anchor="middle" fill="${sc}" font-size="11" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
+    inner += `<text x="${p.x+p.w/2}" y="${p.y+58}" text-anchor="middle" fill="${sc2}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
+    if (p.node.qty > 1) {
+      inner += `<rect x="${p.x+p.w-34}" y="${p.y-8}" width="38" height="18" rx="9" fill="#f59e0b" opacity="0.9"/>`;
+      inner += `<text x="${p.x+p.w-15}" y="${p.y+6}" text-anchor="middle" fill="#000" font-size="10" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
+    }
+    inner += `</g>`;
+  }
+
+  container.innerHTML = `<div class="viz-container" id="orgVizC">
+    <svg id="orgSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <g id="orgG">${inner}</g>
+    </svg>
+    <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
+      <button class="viz-btn" onclick="orgZoom(1.3)">＋</button>
+      <button class="viz-btn" onclick="orgZoom(0.7)">−</button>
+      <button class="viz-btn" onclick="orgFit()">Sığdır</button>
+    </div>
+    <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10">
+      🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin
+    </div>
+  </div>`;
+
+  // Interactive zoom/pan state
+  window._orgViz = { scale: 1, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0, svgW, svgH };
+  orgFit();
+
+  const svg = document.getElementById('orgSvg');
+  const vizC = document.getElementById('orgVizC');
+
+  svg.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.88;
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const v = window._orgViz;
+    const newScale = Math.max(0.1, Math.min(5, v.scale * factor));
+    v.tx = mx - (mx - v.tx) * (newScale / v.scale);
+    v.ty = my - (my - v.ty) * (newScale / v.scale);
+    v.scale = newScale;
+    applyOrgTransform();
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    const v = window._orgViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
+    svg.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', function(e) {
+    const v = window._orgViz; if (!v.dragging) return;
+    v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
+    v.lastX = e.clientX; v.lastY = e.clientY;
+    applyOrgTransform();
+  });
+  window.addEventListener('mouseup', function() {
+    const v = window._orgViz; v.dragging = false;
+    const svg = document.getElementById('orgSvg'); if (svg) svg.style.cursor = 'grab';
+  });
+  svg.style.cursor = 'grab';
+}
+
+function applyOrgTransform() {
+  const g = document.getElementById('orgG'); if (!g) return;
+  const v = window._orgViz;
+  g.setAttribute('transform', `translate(${v.tx},${v.ty}) scale(${v.scale})`);
+}
+
+function orgZoom(factor) {
+  const v = window._orgViz; if (!v) return;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const cx = rect.width / 2, cy = rect.height / 2;
+  const newScale = Math.max(0.1, Math.min(5, v.scale * factor));
+  v.tx = cx - (cx - v.tx) * (newScale / v.scale);
+  v.ty = cy - (cy - v.ty) * (newScale / v.scale);
+  v.scale = newScale;
+  applyOrgTransform();
+}
+
+function orgFit() {
+  const v = window._orgViz; if (!v) return;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const scaleX = rect.width / (v.svgW + 100), scaleY = rect.height / (v.svgH + 100);
+  v.scale = Math.min(scaleX, scaleY, 1.2);
+  v.tx = (rect.width - v.svgW * v.scale) / 2;
+  v.ty = (rect.height - v.svgH * v.scale) / 2 + 20;
+  applyOrgTransform();
+}
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+// ═══════ FORCE GRAPH VISUALIZATION ═══════
+function renderForceGraph(container) {
+  const sys = S.systems.find(s => s.id === S.selSys);
+  if (!sys) return;
+
+  const nodes = [], links = [];
+  function walk(node, parentId, depth) {
+    nodes.push({ id: node.id || gid(), name: node.name, partNo: node.partNo, serialNo: node.serialNo, depth, qty: node.qty,
+      x: 500 + (Math.random() - 0.5) * 400, y: 400 + (Math.random() - 0.5) * 300, vx: 0, vy: 0 });
+    if (parentId) links.push({ source: parentId, target: node.id });
+    if (node.children) node.children.forEach(c => walk(c, node.id, depth + 1));
+  }
+  const rootId = 'root-' + sys.id;
+  nodes.push({ id: rootId, name: sys.name, partNo: '', serialNo: sys.serialNo, depth: 0, x: 500, y: 400, vx: 0, vy: 0 });
+  sys.children.forEach(c => walk(c, rootId, 1));
+
+  const depthColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6'];
+
+  // Force simulation with more spread
+  for (let iter = 0; iter < 300; iter++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        let dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        let force = 1200 / (dist * dist);
+        let fx = dx / dist * force, fy = dy / dist * force;
+        nodes[i].vx -= fx; nodes[i].vy -= fy; nodes[j].vx += fx; nodes[j].vy += fy;
+      }
+    }
+    for (const l of links) {
+      const s = nodes.find(n => n.id === l.source), t = nodes.find(n => n.id === l.target);
+      if (!s || !t) continue;
+      let dx = t.x - s.x, dy = t.y - s.y, dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      let force = (dist - 120) * 0.015;
+      s.vx += dx/dist*force; s.vy += dy/dist*force; t.vx -= dx/dist*force; t.vy -= dy/dist*force;
+    }
+    for (const n of nodes) {
+      n.vx += (500 - n.x) * 0.001; n.vy += (400 - n.y) * 0.001;
+      n.vx *= 0.85; n.vy *= 0.85; n.x += n.vx; n.y += n.vy;
+    }
+  }
+
+  // Find bounds
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const n of nodes){if(n.x<minX)minX=n.x;if(n.x>maxX)maxX=n.x;if(n.y<minY)minY=n.y;if(n.y>maxY)maxY=n.y}
+  const gW=maxX-minX+200,gH=maxY-minY+200;
+
+  let inner = '';
+  inner += `<defs><filter id="glow2"><feGaussianBlur stdDeviation="5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <marker id="arrowhead" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="7" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#444"/></marker></defs>`;
+
+  for (const l of links) {
+    const s = nodes.find(n => n.id === l.source), t = nodes.find(n => n.id === l.target);
+    if (!s || !t) continue;
+    inner += `<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>`;
+  }
+
+  for (const n of nodes) {
+    const r = n.depth === 0 ? 32 : Math.max(14, 22 - n.depth * 3);
+    const col = depthColors[n.depth % depthColors.length];
+    inner += `<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="0.9" stroke="${col}" stroke-width="3" stroke-opacity="0.25" ${n.depth===0?'filter="url(#glow2)"':''}/>`;
+    inner += `<text x="${n.x}" y="${n.y + r + 16}" text-anchor="middle" fill="#aaa" font-size="${n.depth===0?13:11}" font-weight="500" font-family="IBM Plex Sans,sans-serif">${truncate(n.name, 20)}</text>`;
+    if (n.partNo) inner += `<text x="${n.x}" y="${n.y + r + 30}" text-anchor="middle" fill="#666" font-size="9" font-family="JetBrains Mono,monospace">${n.partNo}</text>`;
+  }
+
+  container.innerHTML = `<div class="viz-container" id="graphVizC">
+    <svg id="graphSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <g id="graphG">${inner}</g>
+    </svg>
+    <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
+      <button class="viz-btn" onclick="graphZoom(1.3)">＋</button>
+      <button class="viz-btn" onclick="graphZoom(0.7)">−</button>
+      <button class="viz-btn" onclick="graphFit()">Sığdır</button>
+    </div>
+    <div class="viz-legend" style="position:absolute;bottom:12px;left:12px">
+      <div style="font-weight:600;margin-bottom:4px;color:#aaa">Seviye</div>
+      ${depthColors.slice(0,4).map((c,i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><div style="width:8px;height:8px;border-radius:50%;background:${c}"></div><span>${['Sistem','Alt Sistem','Bileşen','Parça'][i]}</span></div>`).join('')}
+    </div>
+    <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10">
+      🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin
+    </div>
+  </div>`;
+
+  window._graphViz = { scale: 1, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0, gW, gH, cX:(minX+maxX)/2, cY:(minY+maxY)/2 };
+  graphFit();
+
+  const svg = document.getElementById('graphSvg');
+  svg.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.88;
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const v = window._graphViz;
+    const ns = Math.max(0.1, Math.min(5, v.scale * factor));
+    v.tx = mx - (mx - v.tx) * (ns / v.scale); v.ty = my - (my - v.ty) * (ns / v.scale); v.scale = ns;
+    applyGraphTransform();
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    const v = window._graphViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
+    svg.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', function(e) {
+    const v = window._graphViz; if (!v || !v.dragging) return;
+    v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
+    v.lastX = e.clientX; v.lastY = e.clientY;
+    applyGraphTransform();
+  });
+  window.addEventListener('mouseup', function() {
+    const v = window._graphViz; if(v) v.dragging = false;
+    const s = document.getElementById('graphSvg'); if(s) s.style.cursor = 'grab';
+  });
+  svg.style.cursor = 'grab';
+}
+
+function applyGraphTransform() {
+  const g = document.getElementById('graphG'); if (!g) return;
+  const v = window._graphViz;
+  g.setAttribute('transform', `translate(${v.tx},${v.ty}) scale(${v.scale})`);
+}
+
+function graphZoom(factor) {
+  const v = window._graphViz; if (!v) return;
+  const svg = document.getElementById('graphSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const cx = rect.width / 2, cy = rect.height / 2;
+  const ns = Math.max(0.1, Math.min(5, v.scale * factor));
+  v.tx = cx - (cx - v.tx) * (ns / v.scale); v.ty = cy - (cy - v.ty) * (ns / v.scale); v.scale = ns;
+  applyGraphTransform();
+}
+
+function graphFit() {
+  const v = window._graphViz; if (!v) return;
+  const svg = document.getElementById('graphSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const sx = rect.width / (v.gW + 80), sy = rect.height / (v.gH + 80);
+  v.scale = Math.min(sx, sy, 1.5);
+  v.tx = rect.width / 2 - v.cX * v.scale;
+  v.ty = rect.height / 2 - v.cY * v.scale;
+  applyGraphTransform();
+}
+
+// ═══════ REVISIONS ═══════
+function renderRevisions(c){
+  if(!S.revisions.length){c.innerHTML='<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-title">Revizyon yok</div></div>';return}
+  c.innerHTML='<div style="padding:10px">'+S.revisions.slice(0,50).map(r=>`<div class="rev-item"><div class="rev-hdr"><span class="rev-tag">${r.action}</span><span class="rev-time">${new Date(r.timestamp).toLocaleString("tr-TR")}</span></div><div class="rev-desc">${r.detail}</div></div>`).join('')+'</div>';
+}
+
+// ═══════ RIGHT PANEL ═══════
+function showNodeRP(id){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const n=find(sys.children,id);if(!n)return;
+  document.getElementById("rpanel").classList.remove("hidden");
+  document.getElementById("rpTitle").textContent="Parça Detayı";
+  document.getElementById("rpBody").innerHTML=`
+    <div class="field"><label class="field-label">Parça Adı</label><input class="field-input" id="nd-n" value="${n.name}"></div>
+    <div class="field"><label class="field-label">Parça No</label><input class="field-input mono" id="nd-p" value="${n.partNo||''}"></div>
+    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="nd-s" value="${n.serialNo||''}"></div>
+    <div class="field"><label class="field-label">Adet</label><input class="field-input mono" id="nd-q" type="number" min="1" value="${n.qty||1}"></div>
+    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="nd-j" value="${n.jiraKey||''}" placeholder="PROJ-1234"></div>
+    <div style="margin-top:10px;display:flex;gap:4px">
+      <button class="tool-btn" onclick="addChildTo('${id}')">+ Alt Parça</button>
+      <button class="tool-btn danger" onclick="delNode('${id}')">Sil</button>
+    </div>`;
+  document.getElementById("rpActs").innerHTML=`<button class="rp-btn cancel" onclick="closeRP()">İptal</button><button class="rp-btn save" onclick="saveNode('${id}')">Kaydet</button>`;
+}
+async function saveNode(id){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const n=find(sys.children,id);if(!n)return;
+  const old=n.name;n.name=document.getElementById("nd-n").value||n.name;n.partNo=document.getElementById("nd-p").value;n.serialNo=document.getElementById("nd-s").value;n.qty=parseInt(document.getElementById("nd-q").value)||1;n.jiraKey=document.getElementById("nd-j").value;
+  addRev("Güncellendi",`${old}→${n.name}`);await persist();renderTab();toast("Kaydedildi")}
+function closeRP(){document.getElementById("rpanel").classList.add("hidden");S.selNode=null;renderTab()}
+function editNode(id){showNodeRP(id)}
+function delNode(id){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const n=find(sys.children,id);if(!n)return;
+  showModal("Sil",`<b>${n.name}</b> silinecek?`,[{text:"İptal"},{text:"Sil",cls:"danger",action:async()=>{rm(sys.children,id);addRev("Silindi",n.name);await persist();closeRP();renderMain();toast("Silindi","info")}}])}
+function addChild(){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;showAddPartModal(sys)}
+function addChildTo(pid){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const p=find(sys.children,pid);if(!p)return;showAddPartModal(p)}
+
+// ═══════ MODALS ═══════
+function showModal(t,b,btns){document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()"><div class="modal-title">${t}</div><div class="modal-desc">${b}</div><div class="modal-btns" id="mBtns"></div></div></div>`;
+  const c=document.getElementById("mBtns");btns.forEach(b=>{const btn=document.createElement("button");btn.className=`modal-btn ${b.cls||''}`;btn.textContent=b.text;btn.onclick=()=>{closeModal();if(b.action)b.action()};c.appendChild(btn)})}
+function closeModal(){document.getElementById("modalC").innerHTML=""}
+
+function showAddSystemModal(){
+  const id=gid();document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Yeni Sistem</div><div class="modal-desc">Üst seviye sistem oluşturun.</div>
+    <div class="field"><label class="field-label">Ad</label><input class="field-input" id="ms-n" placeholder="Radar Sistemi"></div>
+    <div class="field"><label class="field-label">Tip</label><select class="field-input" id="ms-t"><option>Radar</option><option>EW</option><option>Haberleşme</option><option>EO</option><option>C4ISR</option><option>Silah Sistemi</option><option>Platform</option></select></div>
+    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="ms-s" placeholder="RDR-2026-X001"></div>
+    <div class="field"><label class="field-label">Durum</label><select class="field-input" id="ms-st"><option>Aktif</option><option>Üretimde</option><option>Test</option><option>Bakımda</option></select></div>
+    <div class="field"><label class="field-label">İkon</label><select class="field-input" id="ms-i"><option>📡</option><option>⚡</option><option>🔗</option><option>🔭</option><option>🛡️</option><option>🚀</option></select></div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="createSys('${id}')">Oluştur</button></div></div></div>`}
+async function createSys(id){const n=document.getElementById("ms-n").value.trim();if(!n){toast("Ad gerekli","error");return}
+  S.systems.push({id,name:n,type:document.getElementById("ms-t").value,serialNo:document.getElementById("ms-s").value||`SYS-${Date.now().toString(36).toUpperCase()}`,status:document.getElementById("ms-st").value,icon:document.getElementById("ms-i").value,revision:"Rev-A",children:[]});
+  addRev("Sistem oluşturuldu",n);await persist();closeModal();selSys(id);renderSidebar();toast("Oluşturuldu")}
+
+function showAddPartModal(parent){
+  const id=gid();document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Yeni Parça</div><div class="modal-desc">Üst: <b>${parent.name}</b></div>
+    <div class="field"><label class="field-label">Ad</label><input class="field-input" id="mp-n" placeholder="T/R Modül"></div>
+    <div class="field"><label class="field-label">Parça No</label><input class="field-input mono" id="mp-p" placeholder="TRM-110"></div>
+    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="mp-s" placeholder="TRM-B-10441"></div>
+    <div class="field"><label class="field-label">Adet</label><input class="field-input mono" id="mp-q" type="number" min="1" value="1"></div>
+    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="mp-j" placeholder="PROJ-1234"></div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="createPart('${parent.id}','${id}')">Ekle</button></div></div></div>`}
+async function createPart(pid,id){const n=document.getElementById("mp-n").value.trim();if(!n){toast("Ad gerekli","error");return}
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;let p=sys.id===pid?sys:find(sys.children,pid);if(!p)return;if(!p.children)p.children=[];
+  p.children.push({id,name:n,partNo:document.getElementById("mp-p").value,serialNo:document.getElementById("mp-s").value||`SN-${Date.now().toString(36).toUpperCase()}`,qty:parseInt(document.getElementById("mp-q").value)||1,jiraKey:document.getElementById("mp-j").value,children:[]});
+  S.expanded[pid]=true;addRev("Parça eklendi",`${n}→${p.name}`);await persist();closeModal();renderMain();toast("Eklendi")}
+
+// ═══════ IMPORT/EXPORT ═══════
+function showImportMenu(){showModal("İçe Aktar","Kaynak seçin:",[{text:"İptal"},{text:"📗 Excel",cls:"primary",action:importExcel},{text:"📄 Jira CSV",cls:"primary",action:importJiraCSV},{text:"💾 JSON",cls:"primary",action:importBomJSON}])}
+
+// ── EXCEL IMPORT ──
+async function importExcel(){
+  const result=await window.api.importExcel();
+  if(!result)return;
+  if(result.error){toast("Excel hatası: "+result.error,"error");return}
+  
+  const sheet=result.sheets[0];
+  if(!sheet||!sheet.data?.length){toast("Boş Excel","error");return}
+
+  // Show preview + column mapping modal
+  const headers=sheet.data[0];
+  const preview=sheet.data.slice(0,8);
+
+  let tableHtml='<div class="xlsx-preview"><table><tr>'+headers.map((h,i)=>`<th>${h||'Col '+i}</th>`).join('')+'</tr>';
+  preview.slice(1).forEach(row=>{tableHtml+='<tr>'+headers.map((_,i)=>`<td>${row[i]||''}</td>`).join('')+'</tr>'});
+  tableHtml+='</table></div>';
+
+  const colOpts=headers.map((h,i)=>`<option value="${i}">${h||'Col '+i}</option>`).join('');
+  const noneOpt='<option value="-1">-- Yok --</option>';
+
+  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" style="width:600px" onclick="event.stopPropagation()">
+    <div class="modal-title">Excel İçe Aktar</div>
+    <div class="modal-desc">Sayfa: <b>${sheet.name}</b> — ${sheet.data.length-1} satır. Sütun eşleştirmesini yapın:</div>
+    ${tableHtml}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+      <div class="field"><label class="field-label">Parça Adı *</label><select class="field-input" id="xl-name">${colOpts}</select></div>
+      <div class="field"><label class="field-label">Parça No</label><select class="field-input" id="xl-pn">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">Seri No</label><select class="field-input" id="xl-sn">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">Adet</label><select class="field-input" id="xl-qty">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">Jira Key</label><select class="field-input" id="xl-jira">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">Parent ID / Üst</label><select class="field-input" id="xl-parent">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">Seviye (Level / Indent)</label><select class="field-input" id="xl-level">${noneOpt}${colOpts}</select></div>
+      <div class="field"><label class="field-label">ID</label><select class="field-input" id="xl-id">${noneOpt}${colOpts}</select></div>
+    </div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="processExcel()">İçe Aktar</button></div>
+  </div></div>`;
+  
+  // Store data globally for processing
+  window._xlData = sheet.data;
+
+  // Auto-detect columns
+  const hl = headers.map(h => (h||'').toString().toLowerCase());
+  const autoMap = { name: ['name','ad','parça','part','summary','açıklama','description','item'],
+    pn:['partno','part no','parça no','pn','part_no','malzeme'],sn:['serialno','serial','seri','sn','serial_no'],
+    qty:['qty','quantity','adet','miktar','count'],jira:['jira','key','issue','ticket'],
+    parent:['parent','üst','parent_id','parentid'],level:['level','seviye','indent','depth','lvl'],
+    id:['id','no','numara','item_id'] };
+  
+  for(const[field,keywords]of Object.entries(autoMap)){
+    const idx=hl.findIndex(h=>keywords.some(k=>h.includes(k)));
+    if(idx>=0){const el=document.getElementById('xl-'+field);if(el)el.value=idx}
+  }
+}
+
+async function processExcel(){
+  const data=window._xlData;if(!data)return;
+  const get=id=>{const v=parseInt(document.getElementById(id)?.value);return v>=0?v:-1};
+  const nameCol=get('xl-name'),pnCol=get('xl-pn'),snCol=get('xl-sn'),qtyCol=get('xl-qty'),jiraCol=get('xl-jira'),parentCol=get('xl-parent'),levelCol=get('xl-level'),idCol=get('xl-id');
+  
+  if(nameCol<0){toast("Parça Adı sütunu gerekli","error");return}
+
+  const rows=data.slice(1).filter(r=>r[nameCol]);
+  const sysId=gid();
+  const sysName="Excel Import — "+new Date().toLocaleDateString("tr-TR");
+  
+  // Build tree
+  let children=[];
+  
+  if(parentCol>=0 && idCol>=0){
+    // Parent ID mode
+    const nodeMap={};
+    for(const r of rows){
+      const id=String(r[idCol]||gid());
+      nodeMap[id]={id:'xl-'+id,name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]};
+    }
+    for(const r of rows){
+      const id=String(r[idCol]);
+      const pid=String(r[parentCol]||'');
+      if(pid&&nodeMap[pid]){nodeMap[pid].children.push(nodeMap[id])}
+      else{children.push(nodeMap[id])}
+    }
+  } else if(levelCol>=0){
+    // Level/indent mode
+    const stack=[{children}];
+    for(const r of rows){
+      const level=parseInt(r[levelCol])||0;
+      const node={id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]};
+      while(stack.length>level+1)stack.pop();
+      if(stack.length<=level)stack.push(stack[stack.length-1].children[stack[stack.length-1].children.length-1]||{children});
+      const parent=stack[stack.length-1];
+      (parent.children||children).push(node);
+      stack.push(node);
+    }
+  } else {
+    // Flat list
+    for(const r of rows){
+      children.push({id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]});
+    }
+  }
+
+  S.systems.push({id:sysId,name:sysName,type:"Import",serialNo:`XLS-${Date.now().toString(36).toUpperCase()}`,status:"Aktif",icon:"📦",revision:"Rev-A",children});
+  addRev("Excel içe aktarıldı",`${rows.length} satır → ${sysName}`);
+  await persist();closeModal();selSys(sysId);renderSidebar();toast(`${rows.length} parça yüklendi`);
+}
+
+// ── JIRA CSV ──
+async function exportJira(){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const rows=[["Summary","Issue Type","Description","Parent","Priority","Labels","Custom field (Part No)","Custom field (Serial No)","Custom field (Quantity)"].join(",")];
+  rows.push(csvR([sys.name,"Epic",`${sys.type}|S/N:${sys.serialNo}|${sys.status}`,"","High",sys.type,"",sys.serialNo,"1"]));
+  const w=(ns,pn)=>{for(const n of ns){const has=n.children?.length>0;rows.push(csvR([n.name,has?"Story":"Sub-task",`${n.partNo||'-'}|${n.serialNo}`,pn,"Medium",sys.type,n.partNo||"",n.serialNo,String(n.qty||1)]));if(has)w(n.children,n.name)}};
+  w(sys.children,sys.name);
+  const p=await window.api.exportJiraCsv(rows.join("\n"));if(p){addRev("Jira CSV",p.split(/[/\\]/).pop());await persist();toast("CSV kaydedildi")}
+}
+function csvR(f){return f.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(",")}
+
+async function importJiraCSV(){const c=await window.api.importJiraCsv();if(!c)return;
+  const lines=parseCSV(c);if(lines.length<2){toast("Geçersiz CSV","error");return}
+  const h=lines[0].map(x=>x.trim().toLowerCase());const si=h.findIndex(x=>x==='summary'),ki=h.findIndex(x=>x.includes('key'));
+  if(si<0){toast("Summary sütunu yok","error");return}
+  const sys=S.systems.find(s=>s.id===S.selSys);let m=0;
+  if(sys){for(let i=1;i<lines.length;i++){const s=lines[i][si]?.trim(),k=ki>=0?lines[i][ki]?.trim():"";if(!s||!k)continue;
+    const w=ns=>{for(const n of ns){if(n.name.toLowerCase()===s.toLowerCase()||n.partNo===s){n.jiraKey=k;m++}if(n.children?.length)w(n.children)}};w(sys.children)}}
+  addRev("Jira CSV import",`${m} eşleşme`);await persist();renderMain();toast(`${m} parça eşleştirildi`)}
+function parseCSV(t){const lines=[];let cur=[],f="",q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'&&t[i+1]==='"'){f+='"';i++}else if(c==='"')q=false;else f+=c}else{if(c==='"')q=true;else if(c===','){cur.push(f);f=""}else if(c==='\n'||(c==='\r'&&t[i+1]==='\n')){cur.push(f);f="";lines.push(cur);cur=[];if(c==='\r')i++}else f+=c}}if(f||cur.length){cur.push(f);lines.push(cur)}return lines}
+
+async function exportJSON(){const j=JSON.stringify({systems:S.systems,revisions:S.revisions,exportedAt:new Date().toISOString()},null,2);const p=await window.api.exportBomJson(j);if(p){addRev("JSON export",p.split(/[/\\]/).pop());await persist();toast("JSON kaydedildi")}}
+async function importBomJSON(){const c=await window.api.importBomJson();if(!c)return;try{const d=JSON.parse(c);if(d.systems){S.systems=d.systems;S.revisions=d.revisions||[];addRev("JSON import",S.systems.length+" sistem");S.selSys=null;await persist();renderSidebar();renderMain();toast(S.systems.length+" sistem yüklendi")}else toast("Geçersiz format","error")}catch{toast("JSON hatası","error")}}
+
+async function exportExcel(){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const rows=[["Level","Parça Adı","Parça No","Seri No","Adet","Jira Key","Parent"]];
+  const w=(ns,d,pn)=>{for(const n of ns){rows.push([d,n.name,n.partNo||"",n.serialNo,n.qty||1,n.jiraKey||"",pn]);if(n.children?.length)w(n.children,d+1,n.name)}};
+  w(sys.children,0,sys.name);
+  const p=await window.api.exportExcel({sheetData:rows,fileName:`${sys.name}-BOM.xlsx`});
+  if(p){addRev("Excel export",p.split(/[/\\]/).pop());await persist();toast("Excel kaydedildi")}
+}
+
+// ═══════ BOM COMPARE ═══════
+function renderCompare(container){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const others=S.systems.filter(s=>s.id!==S.selSys);
+  if(!others.length){container.innerHTML='<div class="empty-state"><div class="empty-icon">🔀</div><div class="empty-title">Karşılaştırma yapılamıyor</div><div class="empty-desc">En az 2 sistem gerekli.</div></div>';return}
+  const selId=S.compareTarget||others[0].id;
+  S.compareTarget=selId;
+  const target=S.systems.find(s=>s.id===selId);if(!target)return;
+
+  // Flatten both trees
+  const flatA=flattenBOM(sys.children,'');
+  const flatB=flattenBOM(target.children,'');
+
+  // Build maps by partNo+name
+  const mapA=new Map(),mapB=new Map();
+  flatA.forEach(n=>{const k=bomKey(n);mapA.set(k,n)});
+  flatB.forEach(n=>{const k=bomKey(n);mapB.set(k,n)});
+
+  // Diff
+  const added=[],removed=[],changed=[],unchanged=[];
+  for(const[k,n]of mapA){
+    if(!mapB.has(k)){removed.push({...n,_diff:'removed'})}
+    else{const b=mapB.get(k);if(n.qty!==b.qty||n.serialNo!==b.serialNo){changed.push({a:n,b,_diff:'changed'})}else{unchanged.push(n)}}
+  }
+  for(const[k,n]of mapB){if(!mapA.has(k)){added.push({...n,_diff:'added'})}}
+
+  const opts=others.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${s.icon} ${s.name}</option>`).join('');
+
+  container.innerHTML=`
+    <div class="cmp-summary">
+      <span style="font-weight:600;margin-right:8px">Karşılaştır:</span>
+      <span style="color:var(--ac2)">${sys.icon} ${sys.name}</span>
+      <span style="color:var(--tx3)">↔</span>
+      <select class="cmp-select" onchange="S.compareTarget=this.value;renderTab()">${opts}</select>
+      <div class="tool-spacer"></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--ok)"></div><span style="color:var(--ok)">${added.length} eklenen</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--err)"></div><span style="color:var(--err)">${removed.length} kaldırılan</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--warn)"></div><span style="color:var(--warn)">${changed.length} değişen</span></div>
+      <div class="cmp-stat"><span style="color:var(--tx3)">${unchanged.length} aynı</span></div>
+    </div>
+    <div class="cmp-layout">
+      <div class="cmp-side">
+        <div class="cmp-side-hdr">${sys.icon} ${sys.name} <span style="color:var(--tx3);font-size:9px">(${flatA.length} parça)</span></div>
+        ${removed.map(n=>`<div class="cmp-row removed" style="padding-left:${8+n._depth*14}px"><span class="cmp-badge rem">−</span><span>${n.name}</span><span class="cmp-pn">${n.partNo||''} ${n.qty>1?'×'+n.qty:''}</span></div>`).join('')}
+        ${changed.map(c=>`<div class="cmp-row changed" style="padding-left:${8+c.a._depth*14}px"><span class="cmp-badge chg">≠</span><span>${c.a.name}</span><span class="cmp-pn">${c.a.partNo||''} ×${c.a.qty} SN:${c.a.serialNo}</span></div>`).join('')}
+        ${unchanged.map(n=>`<div class="cmp-row unchanged" style="padding-left:${8+n._depth*14}px"><span>${n.name}</span><span class="cmp-pn">${n.partNo||''}</span></div>`).join('')}
+      </div>
+      <div class="cmp-side">
+        <div class="cmp-side-hdr">${target.icon} ${target.name} <span style="color:var(--tx3);font-size:9px">(${flatB.length} parça)</span></div>
+        ${added.map(n=>`<div class="cmp-row added" style="padding-left:${8+n._depth*14}px"><span class="cmp-badge add">+</span><span>${n.name}</span><span class="cmp-pn">${n.partNo||''} ${n.qty>1?'×'+n.qty:''}</span></div>`).join('')}
+        ${changed.map(c=>`<div class="cmp-row changed" style="padding-left:${8+c.b._depth*14}px"><span class="cmp-badge chg">≠</span><span>${c.b.name}</span><span class="cmp-pn">${c.b.partNo||''} ×${c.b.qty} SN:${c.b.serialNo}</span></div>`).join('')}
+        ${unchanged.map(n=>`<div class="cmp-row unchanged" style="padding-left:${8+n._depth*14}px"><span>${n.name}</span><span class="cmp-pn">${n.partNo||''}</span></div>`).join('')}
+      </div>
+    </div>`;
+}
+function flattenBOM(nodes,parentPath,depth=0){
+  const result=[];
+  for(const n of(nodes||[])){
+    const path=parentPath?parentPath+'/'+n.name:n.name;
+    result.push({id:n.id,name:n.name,partNo:n.partNo||'',serialNo:n.serialNo||'',qty:n.qty||1,jiraKey:n.jiraKey||'',_path:path,_depth:depth});
+    if(n.children?.length)result.push(...flattenBOM(n.children,path,depth+1));
+  }
+  return result;
+}
+function bomKey(n){return (n.partNo||'')+':'+(n.name||'').toLowerCase()+':'+n._path.toLowerCase()}
+
+// ═══════ DASHBOARD ═══════
+function renderDashboard(container){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const flat=flattenBOM(sys.children,'');
+  const total=flat.length;
+  const totalQty=flat.reduce((s,n)=>s+(n.qty||1),0);
+  const withJira=flat.filter(n=>n.jiraKey).length;
+  const noJira=flat.filter(n=>!n.jiraKey);
+  const maxDepth=flat.reduce((m,n)=>Math.max(m,n._depth),0)+1;
+
+  // Group by depth level
+  const byDepth={};
+  flat.forEach(n=>{const lbl=['Alt Sistem','Bileşen','Parça','Alt Parça'][n._depth]||`Seviye ${n._depth}`;byDepth[lbl]=(byDepth[lbl]||0)+1});
+
+  // Top qty items
+  const topQty=[...flat].sort((a,b)=>b.qty-a.qty).slice(0,8);
+
+  // Parts with children count (sub-systems)
+  const subSystems=flat.filter(n=>{const node=find(sys.children,n.id);return node&&node.children&&node.children.length>0});
+
+  container.innerHTML=`<div class="dash-grid">
+    <div class="dash-card"><div class="dash-card-title">Toplam Parça</div><div class="dash-big">${total}</div><div class="dash-sub">${totalQty} adet (toplam miktar)</div></div>
+    <div class="dash-card"><div class="dash-card-title">Derinlik</div><div class="dash-big">${maxDepth}</div><div class="dash-sub">seviye ağaç derinliği</div></div>
+    <div class="dash-card"><div class="dash-card-title">Jira Takibi</div><div class="dash-big" style="color:${withJira===total?'var(--ok)':'var(--warn)'}">${Math.round(withJira/total*100)||0}%</div><div class="dash-sub">${withJira}/${total} parçada Jira key var</div></div>
+    <div class="dash-card"><div class="dash-card-title">Alt Sistem Sayısı</div><div class="dash-big">${sys.children.length}</div><div class="dash-sub">${subSystems.length} iç içe alt sistem</div></div>
+
+    <div class="dash-card" style="grid-column:span 2"><div class="dash-card-title">Seviye Dağılımı</div>
+      ${Object.entries(byDepth).map(([lbl,count])=>{const pct=Math.round(count/total*100);return`<div class="dash-bar"><span class="dash-bar-label">${lbl}</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pct}%;background:var(--ac)"></div></div><span class="dash-bar-val">${count}</span></div>`}).join('')}
+    </div>
+
+    <div class="dash-card"><div class="dash-card-title">En Yüksek Adetli Parçalar</div>
+      ${topQty.map(n=>`<div class="dash-list-item"><span style="flex:1">${n.name}</span><span style="color:var(--warn);font-family:'JetBrains Mono',monospace">×${n.qty}</span></div>`).join('')}
+    </div>
+
+    <div class="dash-card"><div class="dash-card-title">Jira Key Eksik (${noJira.length})</div>
+      ${noJira.length===0?'<div style="color:var(--ok);font-size:11px;padding:8px">Tüm parçalarda Jira key mevcut</div>':
+      noJira.slice(0,10).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name}</span><span class="cmp-pn">${n.partNo||'—'}</span></div>`).join('')+(noJira.length>10?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...ve ${noJira.length-10} parça daha</div>`:'')}
+    </div>
+  </div>`;
+}
+
+// ═══════ AUTO-BACKUP ═══════
+let _backupTimer=null;
+const _origPersist=persist;
+persist=async function(){
+  await window.api.saveData({systems:S.systems,revisions:S.revisions});
+  // Schedule backup 30s after last save
+  if(_backupTimer)clearTimeout(_backupTimer);
+  _backupTimer=setTimeout(async()=>{
+    try{await window.api.saveData({systems:S.systems,revisions:S.revisions,_backup:true})}catch(e){}
+  },30000);
+};
+
+// ── KEYBOARD ──
+document.addEventListener("keydown",e=>{if(e.ctrlKey&&e.key==="s"){e.preventDefault();persist();toast("Kaydedildi")}if(e.ctrlKey&&e.key==="f"&&S.tab==='tree'){e.preventDefault();const el=document.getElementById('treeSearch');if(el)el.focus()}if(e.ctrlKey&&e.key==="a"&&S.tab==='tree'){e.preventDefault();selectAllVisible()}if(e.key==="Delete"&&S.multiSel.length>0){bulkDelete()}else if(e.key==="Delete"&&S.selNode){delNode(S.selNode)}if(e.key==="Escape"){if(S.multiSel.length>0){clearMultiSel()}else if(S.searchQuery){S.searchQuery='';S.searchHits=[];S.searchIdx=0;renderTab()}else{closeModal();closeRP()}}});
+
+function selectAllVisible(){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  S.multiSel=[];
+  const walk=ns=>{for(const n of ns){S.multiSel.push(n.id);if(S.expanded[n.id]&&n.children?.length)walk(n.children)}};
+  walk(sys.children);renderToolbar();renderTab();
+}
+
+init();
+</script>
+</body>
+</html>

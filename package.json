@@ -1,0 +1,32 @@
+{
+  "name": "bom-manager",
+  "version": "2.0.0",
+  "description": "BOM Yönetim Sistemi - Jira Uyumlu, Excel Import, Görselleştirme (Offline)",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.bom-manager.app",
+    "productName": "BOM Manager",
+    "files": [
+      "src/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  }
+}
