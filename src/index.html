@@ -330,7 +330,7 @@ function renderSidebar(){
     </div>`).join("");
 }
 function filterSystems(){renderSidebar()}
-function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";const sys=S.systems.find(s=>s.id===id);if(sys)sys.children.forEach(c=>{S.expanded[c.id]=true});renderSidebar();renderMain();closeRP()}
+function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;const sys=S.systems.find(s=>s.id===id);if(sys)sys.children.forEach(c=>{S.expanded[c.id]=true});renderSidebar();renderMain();closeRP()}
 
 // ═══════ MAIN ═══════
 function renderMain(){
@@ -394,33 +394,76 @@ function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of node
 
 // ═══════ TREE SEARCH ═══════
 S.searchQuery='';S.searchHits=[];S.searchIdx=0;
-function searchTree(q){
-  S.searchQuery=q;S.searchHits=[];S.searchIdx=0;
-  if(!q||q.length<2){renderTab();return}
-  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+const SEARCH_MAX_EXPAND = 80; // above this: show count but don't expand parents (avoid huge re-render)
+let _searchTimer = null;
+
+function searchTree(q) {
+  if (_searchTimer) clearTimeout(_searchTimer);
+  if (!q || q.length < 2) {
+    // Clear immediately, no debounce
+    S.searchQuery=''; S.searchHits=[]; S.searchIdx=0;
+    renderTab(); return;
+  }
+  _searchTimer = setTimeout(() => _doSearch(q), 280);
+}
+
+function _doSearch(q) {
+  S.searchQuery=q; S.searchHits=[]; S.searchIdx=0;
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys)return;
   const ql=q.toLowerCase();
-  // Find all matching nodes
+
+  // Walk tree, collect hits (fast even at 20k nodes)
   const walkFind=(nodes)=>{for(const n of nodes){
     if((n.name||'').toLowerCase().includes(ql)||(n.partNo||'').toLowerCase().includes(ql)||(n.serialNo||'').toLowerCase().includes(ql)||(n.jiraKey||'').toLowerCase().includes(ql)){S.searchHits.push(n.id)}
     if(n.children?.length)walkFind(n.children);
   }};
   walkFind(sys.children);
-  // Expand parents of all hits
-  if(S.searchHits.length>0){
+
+  if(S.searchHits.length===0){renderTab();return}
+
+  if(S.searchHits.length<=SEARCH_MAX_EXPAND){
+    // Manageable: expand parents so hits are visible
+    const hitSet=new Set(S.searchHits);
     const expandParents=(nodes,path)=>{for(const n of nodes){
       const curPath=[...path,n.id];
-      if(S.searchHits.includes(n.id)){curPath.slice(0,-1).forEach(id=>{S.expanded[id]=true})}
+      if(hitSet.has(n.id)){curPath.slice(0,-1).forEach(id=>{S.expanded[id]=true})}
       if(n.children?.length)expandParents(n.children,curPath);
     }};
     expandParents(sys.children,[]);
+    renderTab();
+    scrollToHit();
+  } else {
+    // Too many hits: only update info bar, don't expand/re-render (prevents freeze)
+    updateSearchInfo();
+    // Apply highlight classes in-place without full re-render
+    _applySearchHighlight();
   }
-  renderTab();
-  if(S.searchHits.length>0)scrollToHit();
 }
+
+function _applySearchHighlight(){
+  // Remove old highlights
+  document.querySelectorAll('.search-hit').forEach(el=>el.classList.remove('search-hit'));
+  // Add to visible hits only
+  const hitSet=new Set(S.searchHits);
+  hitSet.forEach(id=>{const el=document.getElementById('tn-'+id);if(el)el.classList.add('search-hit')});
+  updateSearchInfo();
+}
+
 function searchNav(dir){
   if(!S.searchHits.length)return;
   S.searchIdx=(S.searchIdx+dir+S.searchHits.length)%S.searchHits.length;
-  renderTab();scrollToHit();
+  // If this hit's parent isn't expanded yet, expand it now (on demand)
+  const sys=S.systems.find(s=>s.id===S.selSys);
+  if(sys){
+    const hitId=S.searchHits[S.searchIdx];
+    const expandParents=(nodes,path)=>{for(const n of nodes){
+      const curPath=[...path,n.id];
+      if(n.id===hitId){curPath.slice(0,-1).forEach(id=>{S.expanded[id]=true});return true}
+      if(n.children?.length&&expandParents(n.children,curPath))return true;
+    }};
+    expandParents(sys.children,[]);
+  }
+  renderTab(); scrollToHit();
 }
 function searchKeyNav(e){if(e.key==='Enter'){e.preventDefault();searchNav(e.shiftKey?-1:1)}if(e.key==='Escape'){S.searchQuery='';S.searchHits=[];S.searchIdx=0;renderTab()}}
 function scrollToHit(){
@@ -430,7 +473,10 @@ function scrollToHit(){
 function updateSearchInfo(){
   const el=document.getElementById('searchInfo');if(!el)return;
   if(!S.searchQuery||S.searchQuery.length<2){el.textContent='';return}
-  el.textContent=S.searchHits.length>0?`${S.searchIdx+1}/${S.searchHits.length}`:'Sonuç yok';
+  if(S.searchHits.length===0){el.textContent='Sonuç yok';return}
+  const over=S.searchHits.length>SEARCH_MAX_EXPAND;
+  el.textContent=over?`${S.searchHits.length} sonuç — Enter ile gezin`:`${S.searchIdx+1}/${S.searchHits.length}`;
+  el.title=over?'Çok fazla sonuç: parent\'lar otomatik açılmadı, Enter ile tek tek gez':'';
 }
 function tog(id){S.expanded[id]=!S.expanded[id];renderTab()}
 function selNode(e,id){
@@ -524,21 +570,55 @@ function bulkDelete(){
 }
 
 // ═══════ ORG CHART VISUALIZATION ═══════
+function _orgCountNodes(nodes) {
+  let c = nodes ? nodes.length : 0;
+  if (nodes) for (const n of nodes) if (n.children?.length) c += _orgCountNodes(n.children);
+  return c;
+}
+function _orgCountDesc(nodes) {
+  let c = 0;
+  if (!nodes) return 0;
+  for (const n of nodes) { c++; if (n.children?.length) c += _orgCountDesc(n.children); }
+  return c;
+}
+
+function setOrgDepth(d) { S.orgMaxDepth = d; S.orgExpanded = new Set(); renderTab(); }
+function orgToggleNode(nid) {
+  if (!S.orgExpanded) S.orgExpanded = new Set();
+  if (S.orgExpanded.has(nid)) S.orgExpanded.delete(nid);
+  else S.orgExpanded.add(nid);
+  renderTab();
+}
+
 function renderOrgChart(container) {
   const sys = S.systems.find(s => s.id === S.selSys);
   if (!sys) return;
-  const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true };
+  if (!S.orgExpanded) S.orgExpanded = new Set();
 
+  const totalNodes = _orgCountNodes(sys.children) + 1;
+
+  // Auto-set depth limit for large datasets (first time only)
+  if (S.orgMaxDepth === undefined || S.orgMaxDepth === null) {
+    S.orgMaxDepth = totalNodes > 1000 ? 1 : totalNodes > 300 ? 2 : totalNodes > 80 ? 3 : 99;
+  }
+  const maxD = S.orgMaxDepth;
+
+  const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true, id: 'org-root' };
   const nodeW = 200, nodeH = 72, gapX = 30, gapY = 90;
   const positions = [];
   let maxX = 0, maxY = 0;
 
   function layoutTree(node, depth) {
-    if (!node.children || node.children.length === 0) {
+    const nid = node.id || ('org-' + positions.length);
+    node._oid = nid;
+    const manuallyExpanded = S.orgExpanded.has(nid);
+    const atLimit = depth >= maxD && node.children?.length > 0 && !manuallyExpanded;
+
+    if (!node.children?.length || atLimit) {
       const x = maxX; maxX += nodeW + gapX;
       const y = depth * (nodeH + gapY);
       if (y + nodeH > maxY) maxY = y + nodeH;
-      positions.push({ node, x, y, w: nodeW, h: nodeH });
+      positions.push({ node, nid, x, y, w: nodeW, h: nodeH, collapsed: atLimit, descCount: atLimit ? _orgCountDesc(node.children) : 0 });
       return { x: x + nodeW / 2, left: x, right: x + nodeW };
     }
     const cp = node.children.map(c => layoutTree(c, depth + 1));
@@ -546,19 +626,21 @@ function renderOrgChart(container) {
     const cx = (left + right) / 2 - nodeW / 2;
     const y = depth * (nodeH + gapY);
     if (y + nodeH > maxY) maxY = y + nodeH;
-    positions.push({ node, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x) });
+    // Expanded nodes with children: show collapse button if manually expanded
+    positions.push({ node, nid, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x), collapsed: false, descCount: 0, canCollapse: manuallyExpanded });
     return { x: cx + nodeW / 2, left, right };
   }
   layoutTree(root, 0);
 
+  const renderedNodes = positions.length;
   const pad = 80;
   const svgW = maxX + pad * 2, svgH = maxY + pad * 2 + gapY;
 
-  // Build SVG content string (inner group only)
   let inner = '';
   inner += `<defs><filter id="glow"><feGaussianBlur stdDeviation="4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient></defs>`;
 
+  // Edges
   for (const p of positions) {
     if (p.childCenters) {
       const fx = p.x + p.w / 2, fy = p.y + p.h;
@@ -569,72 +651,95 @@ function renderOrgChart(container) {
     }
   }
 
+  // Nodes
   for (const p of positions) {
     const isR = p.node._isRoot;
-    const fill = isR ? 'url(#rootGrad)' : '#1c1c21';
-    const stroke = isR ? '#818cf8' : '#2e2e34';
-    const tc = isR ? '#fff' : '#e5e3df';
-    const sc = isR ? 'rgba(255,255,255,0.7)' : '#818cf8';
-    const sc2 = isR ? 'rgba(255,255,255,0.5)' : '#555';
-    inner += `<g>`;
-    inner += `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
-    inner += `<text x="${p.x+p.w/2}" y="${p.y+24}" text-anchor="middle" fill="${tc}" font-size="13" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
-    if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+42}" text-anchor="middle" fill="${sc}" font-size="11" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
-    inner += `<text x="${p.x+p.w/2}" y="${p.y+58}" text-anchor="middle" fill="${sc2}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
-    if (p.node.qty > 1) {
-      inner += `<rect x="${p.x+p.w-34}" y="${p.y-8}" width="38" height="18" rx="9" fill="#f59e0b" opacity="0.9"/>`;
-      inner += `<text x="${p.x+p.w-15}" y="${p.y+6}" text-anchor="middle" fill="#000" font-size="10" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
+    if (p.collapsed) {
+      // Clickable collapsed node
+      inner += `<g style="cursor:pointer" onclick="orgToggleNode('${p.nid}')">
+        <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#151520" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85"/>
+        <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="transparent"/>
+        <text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>
+        <text x="${p.x+p.w/2}" y="${p.y+38}" text-anchor="middle" fill="#6366f1" font-size="12" font-weight="700" font-family="IBM Plex Sans,sans-serif">▶ ${p.descCount} parça</text>
+        <text x="${p.x+p.w/2}" y="${p.y+56}" text-anchor="middle" fill="#5555aa" font-size="9" font-family="IBM Plex Sans,sans-serif">tıkla: aç</text>
+      </g>`;
+    } else {
+      const fill = isR ? 'url(#rootGrad)' : '#1c1c21';
+      const stroke = isR ? '#818cf8' : p.canCollapse ? '#10b981' : '#2e2e34';
+      const tc = isR ? '#fff' : '#e5e3df';
+      const sc = isR ? 'rgba(255,255,255,0.7)' : '#818cf8';
+      const sc2 = isR ? 'rgba(255,255,255,0.5)' : '#555';
+      const clickAttr = p.canCollapse ? `style="cursor:pointer" onclick="orgToggleNode('${p.nid}')"` : '';
+      inner += `<g ${clickAttr}>`;
+      inner += `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+24}" text-anchor="middle" fill="${tc}" font-size="13" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
+      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+42}" text-anchor="middle" fill="${sc}" font-size="11" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+58}" text-anchor="middle" fill="${sc2}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
+      if (p.node.qty > 1) {
+        inner += `<rect x="${p.x+p.w-34}" y="${p.y-8}" width="38" height="18" rx="9" fill="#f59e0b" opacity="0.9"/>`;
+        inner += `<text x="${p.x+p.w-15}" y="${p.y+6}" text-anchor="middle" fill="#000" font-size="10" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
+      }
+      if (p.canCollapse) {
+        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-4}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif">tıkla: kapat</text>`;
+      }
+      inner += `</g>`;
     }
-    inner += `</g>`;
   }
+
+  const depthOpts = [1,2,3,4,99].map(d => {
+    const lbl = d===99?'Tümü':`Lvl ${d}`;
+    const act = maxD===d?'background:var(--ac);color:#fff;border-color:var(--ac)':'';
+    return `<button class="viz-btn" style="${act}" onclick="setOrgDepth(${d})">${lbl}</button>`;
+  }).join('');
 
   container.innerHTML = `<div class="viz-container" id="orgVizC">
     <svg id="orgSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
       <g id="orgG">${inner}</g>
     </svg>
+    <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10;display:flex;flex-direction:column;gap:6px">
+      <div>🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin &nbsp;|&nbsp; Düğüme tıkla: aç/kapat</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <span style="color:var(--tx4)">Tüm derinlik:</span>
+        ${depthOpts}
+      </div>
+      <div style="color:var(--tx4);font-size:9px">${renderedNodes} gösteriliyor / ${totalNodes} toplam</div>
+    </div>
     <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
       <button class="viz-btn" onclick="orgZoom(1.3)">＋</button>
       <button class="viz-btn" onclick="orgZoom(0.7)">−</button>
       <button class="viz-btn" onclick="orgFit()">Sığdır</button>
     </div>
-    <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10">
-      🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin
-    </div>
   </div>`;
 
-  // Interactive zoom/pan state
   window._orgViz = { scale: 1, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0, svgW, svgH };
   orgFit();
 
   const svg = document.getElementById('orgSvg');
-  const vizC = document.getElementById('orgVizC');
-
   svg.addEventListener('wheel', function(e) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.12 : 0.88;
     const rect = svg.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const v = window._orgViz;
-    const newScale = Math.max(0.1, Math.min(5, v.scale * factor));
+    const newScale = Math.max(0.05, Math.min(5, v.scale * factor));
     v.tx = mx - (mx - v.tx) * (newScale / v.scale);
     v.ty = my - (my - v.ty) * (newScale / v.scale);
     v.scale = newScale;
     applyOrgTransform();
   }, { passive: false });
-
   svg.addEventListener('mousedown', function(e) {
     if (e.button !== 0) return;
     const v = window._orgViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
     svg.style.cursor = 'grabbing';
   });
   window.addEventListener('mousemove', function(e) {
-    const v = window._orgViz; if (!v.dragging) return;
+    const v = window._orgViz; if (!v || !v.dragging) return;
     v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
     v.lastX = e.clientX; v.lastY = e.clientY;
     applyOrgTransform();
   });
   window.addEventListener('mouseup', function() {
-    const v = window._orgViz; v.dragging = false;
+    const v = window._orgViz; if (v) v.dragging = false;
     const svg = document.getElementById('orgSvg'); if (svg) svg.style.cursor = 'grab';
   });
   svg.style.cursor = 'grab';
@@ -672,119 +777,327 @@ function orgFit() {
 function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 
 // ═══════ FORCE GRAPH VISUALIZATION ═══════
+const GRAPH_SVG_LIMIT = 250; // above this → canvas mode
+const depthColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6'];
+
 function renderForceGraph(container) {
   const sys = S.systems.find(s => s.id === S.selSys);
   if (!sys) return;
 
-  const nodes = [], links = [];
+  // Collect all nodes
+  const allNodes = [], allLinks = [];
   function walk(node, parentId, depth) {
-    nodes.push({ id: node.id || gid(), name: node.name, partNo: node.partNo, serialNo: node.serialNo, depth, qty: node.qty,
-      x: 500 + (Math.random() - 0.5) * 400, y: 400 + (Math.random() - 0.5) * 300, vx: 0, vy: 0 });
-    if (parentId) links.push({ source: parentId, target: node.id });
-    if (node.children) node.children.forEach(c => walk(c, node.id, depth + 1));
+    const id = node.id || ('n-' + allNodes.length);
+    node._fid = id;
+    allNodes.push({ id, name: node.name, partNo: node.partNo, depth, qty: node.qty, children: node.children });
+    if (parentId) allLinks.push({ source: parentId, target: id });
+    if (node.children) node.children.forEach(c => walk(c, id, depth + 1));
   }
   const rootId = 'root-' + sys.id;
-  nodes.push({ id: rootId, name: sys.name, partNo: '', serialNo: sys.serialNo, depth: 0, x: 500, y: 400, vx: 0, vy: 0 });
+  allNodes.push({ id: rootId, name: sys.name, partNo: '', depth: 0, qty: 1, children: sys.children });
   sys.children.forEach(c => walk(c, rootId, 1));
 
-  const depthColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6'];
+  if (allNodes.length <= GRAPH_SVG_LIMIT) {
+    _renderForceGraphSVG(container, allNodes, allLinks);
+  } else {
+    _renderForceGraphCanvas(container, allNodes, allLinks);
+  }
+}
 
-  // Force simulation with more spread
-  for (let iter = 0; iter < 300; iter++) {
+// ── Small graph: SVG force simulation (unchanged logic, optimized iterations) ──
+function _renderForceGraphSVG(container, nodes, links) {
+  // Give nodes initial positions
+  nodes.forEach(n => { n.x = 500 + (Math.random()-0.5)*400; n.y = 400 + (Math.random()-0.5)*300; n.vx=0; n.vy=0; });
+
+  // Build lookup map for link resolve
+  const byId = {}; nodes.forEach(n => byId[n.id] = n);
+
+  const iters = Math.min(300, Math.max(80, 15000 / nodes.length));
+  for (let iter = 0; iter < iters; iter++) {
+    // Repulsion (O(n²) but n is small here)
     for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        let dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
-        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        let force = 1200 / (dist * dist);
-        let fx = dx / dist * force, fy = dy / dist * force;
-        nodes[i].vx -= fx; nodes[i].vy -= fy; nodes[j].vx += fx; nodes[j].vy += fy;
+      for (let j = i+1; j < nodes.length; j++) {
+        let dx=nodes[j].x-nodes[i].x, dy=nodes[j].y-nodes[i].y;
+        let d=Math.sqrt(dx*dx+dy*dy)||1, f=1200/(d*d);
+        let fx=dx/d*f, fy=dy/d*f;
+        nodes[i].vx-=fx; nodes[i].vy-=fy; nodes[j].vx+=fx; nodes[j].vy+=fy;
       }
     }
     for (const l of links) {
-      const s = nodes.find(n => n.id === l.source), t = nodes.find(n => n.id === l.target);
-      if (!s || !t) continue;
-      let dx = t.x - s.x, dy = t.y - s.y, dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      let force = (dist - 120) * 0.015;
-      s.vx += dx/dist*force; s.vy += dy/dist*force; t.vx -= dx/dist*force; t.vy -= dy/dist*force;
+      const s=byId[l.source], t=byId[l.target]; if(!s||!t) continue;
+      let dx=t.x-s.x, dy=t.y-s.y, d=Math.sqrt(dx*dx+dy*dy)||1, f=(d-120)*0.015;
+      s.vx+=dx/d*f; s.vy+=dy/d*f; t.vx-=dx/d*f; t.vy-=dy/d*f;
     }
     for (const n of nodes) {
-      n.vx += (500 - n.x) * 0.001; n.vy += (400 - n.y) * 0.001;
-      n.vx *= 0.85; n.vy *= 0.85; n.x += n.vx; n.y += n.vy;
+      n.vx+=(500-n.x)*0.001; n.vy+=(400-n.y)*0.001;
+      n.vx*=0.85; n.vy*=0.85; n.x+=n.vx; n.y+=n.vy;
     }
   }
 
-  // Find bounds
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
   for(const n of nodes){if(n.x<minX)minX=n.x;if(n.x>maxX)maxX=n.x;if(n.y<minY)minY=n.y;if(n.y>maxY)maxY=n.y}
-  const gW=maxX-minX+200,gH=maxY-minY+200;
+  const gW=maxX-minX+200, gH=maxY-minY+200;
 
-  let inner = '';
-  inner += `<defs><filter id="glow2"><feGaussianBlur stdDeviation="5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  let inner=`<defs><filter id="glow2"><feGaussianBlur stdDeviation="5" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <marker id="arrowhead" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="7" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#444"/></marker></defs>`;
 
-  for (const l of links) {
-    const s = nodes.find(n => n.id === l.source), t = nodes.find(n => n.id === l.target);
-    if (!s || !t) continue;
-    inner += `<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>`;
+  const byId2={}; nodes.forEach(n=>byId2[n.id]=n);
+  for(const l of links){const s=byId2[l.source],t=byId2[l.target];if(!s||!t)continue;inner+=`<line x1="${s.x}" y1="${s.y}" x2="${t.x}" y2="${t.y}" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>`;}
+  for(const n of nodes){
+    const r=n.depth===0?32:Math.max(14,22-n.depth*3);
+    const col=depthColors[n.depth%depthColors.length];
+    inner+=`<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="0.9" stroke="${col}" stroke-width="3" stroke-opacity="0.25" ${n.depth===0?'filter="url(#glow2)"':''}/>`;
+    inner+=`<text x="${n.x}" y="${n.y+r+16}" text-anchor="middle" fill="#aaa" font-size="${n.depth===0?13:11}" font-weight="500" font-family="IBM Plex Sans,sans-serif">${truncate(n.name,20)}</text>`;
+    if(n.partNo) inner+=`<text x="${n.x}" y="${n.y+r+30}" text-anchor="middle" fill="#666" font-size="9" font-family="JetBrains Mono,monospace">${n.partNo}</text>`;
   }
 
-  for (const n of nodes) {
-    const r = n.depth === 0 ? 32 : Math.max(14, 22 - n.depth * 3);
-    const col = depthColors[n.depth % depthColors.length];
-    inner += `<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="0.9" stroke="${col}" stroke-width="3" stroke-opacity="0.25" ${n.depth===0?'filter="url(#glow2)"':''}/>`;
-    inner += `<text x="${n.x}" y="${n.y + r + 16}" text-anchor="middle" fill="#aaa" font-size="${n.depth===0?13:11}" font-weight="500" font-family="IBM Plex Sans,sans-serif">${truncate(n.name, 20)}</text>`;
-    if (n.partNo) inner += `<text x="${n.x}" y="${n.y + r + 30}" text-anchor="middle" fill="#666" font-size="9" font-family="JetBrains Mono,monospace">${n.partNo}</text>`;
-  }
-
-  container.innerHTML = `<div class="viz-container" id="graphVizC">
-    <svg id="graphSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-      <g id="graphG">${inner}</g>
-    </svg>
+  container.innerHTML=`<div class="viz-container" id="graphVizC">
+    <svg id="graphSvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><g id="graphG">${inner}</g></svg>
+    <div class="viz-legend" style="position:absolute;bottom:12px;left:12px">
+      <div style="font-weight:600;margin-bottom:4px;color:#aaa">Seviye</div>
+      ${depthColors.slice(0,4).map((c,i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><div style="width:8px;height:8px;border-radius:50%;background:${c}"></div><span>${['Sistem','Alt Sistem','Bileşen','Parça'][i]}</span></div>`).join('')}
+    </div>
     <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
       <button class="viz-btn" onclick="graphZoom(1.3)">＋</button>
       <button class="viz-btn" onclick="graphZoom(0.7)">−</button>
       <button class="viz-btn" onclick="graphFit()">Sığdır</button>
     </div>
-    <div class="viz-legend" style="position:absolute;bottom:12px;left:12px">
-      <div style="font-weight:600;margin-bottom:4px;color:#aaa">Seviye</div>
-      ${depthColors.slice(0,4).map((c,i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><div style="width:8px;height:8px;border-radius:50%;background:${c}"></div><span>${['Sistem','Alt Sistem','Bileşen','Parça'][i]}</span></div>`).join('')}
-    </div>
     <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10">
-      🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin
+      🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin &nbsp;|&nbsp; ${nodes.length} düğüm
     </div>
   </div>`;
 
-  window._graphViz = { scale: 1, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0, gW, gH, cX:(minX+maxX)/2, cY:(minY+maxY)/2 };
+  window._graphViz={scale:1,tx:0,ty:0,dragging:false,lastX:0,lastY:0,gW,gH,cX:(minX+maxX)/2,cY:(minY+maxY)/2};
   graphFit();
+  _attachGraphEvents(document.getElementById('graphSvg'), false);
+}
 
-  const svg = document.getElementById('graphSvg');
-  svg.addEventListener('wheel', function(e) {
+// ── Large graph: Canvas-based radial clustered view ──
+function _renderForceGraphCanvas(container, allNodes, allLinks) {
+  // Build cluster nodes: group by depth 0-2, aggregate deeper nodes into their depth-2 ancestor
+  const MAX_SHOW_DEPTH = 2;
+  const clusterNodes = allNodes.filter(n => n.depth <= MAX_SHOW_DEPTH);
+  const clusterLinks = allLinks.filter(l => {
+    const sn = allNodes.find(n=>n.id===l.source), tn = allNodes.find(n=>n.id===l.target);
+    return sn && tn && sn.depth <= MAX_SHOW_DEPTH && tn.depth <= MAX_SHOW_DEPTH;
+  });
+
+  // Count hidden descendants for each cluster node
+  const descCount = {};
+  clusterNodes.forEach(n => { descCount[n.id] = 0; });
+  allNodes.forEach(n => {
+    if (n.depth <= MAX_SHOW_DEPTH) return;
+    // Find its deepest ancestor within MAX_SHOW_DEPTH
+    // We'll do this by walking allLinks upward
+    // Quick approach: mark ancestors during walk
+  });
+  // Better: count via tree walk
+  function countHidden(node, depth) {
+    if (!node.children) return 0;
+    let cnt = 0;
+    for (const c of node.children) {
+      if (depth + 1 > MAX_SHOW_DEPTH) { cnt++; cnt += countHidden(c, depth+1); }
+      else cnt += countHidden(c, depth+1);
+    }
+    return cnt;
+  }
+  clusterNodes.forEach(n => { descCount[n.id] = countHidden(n, n.depth); });
+
+  // Radial layout by depth
+  const CX = 600, CY = 450;
+  const radii = [0, 200, 420];
+  const byDepth = [[], [], []];
+  clusterNodes.forEach(n => byDepth[Math.min(n.depth, MAX_SHOW_DEPTH)].push(n));
+
+  byDepth[0].forEach(n => { n.cx = CX; n.cy = CY; });
+  byDepth[1].forEach((n, i, arr) => {
+    const angle = (2 * Math.PI * i / arr.length) - Math.PI/2;
+    n.cx = CX + radii[1] * Math.cos(angle);
+    n.cy = CY + radii[1] * Math.sin(angle);
+  });
+  byDepth[2].forEach((n, i, arr) => {
+    const angle = (2 * Math.PI * i / arr.length) - Math.PI/2;
+    n.cx = CX + radii[2] * Math.cos(angle);
+    n.cy = CY + radii[2] * Math.sin(angle);
+  });
+
+  // Find bounds
+  let minX=CX-500, maxX=CX+500, minY=CY-500, maxY=CY+500;
+  clusterNodes.forEach(n=>{if(n.cx-60<minX)minX=n.cx-60;if(n.cx+60>maxX)maxX=n.cx+60;if(n.cy-60<minY)minY=n.cy-60;if(n.cy+60>maxY)maxY=n.cy+60;});
+  const gW=maxX-minX+100, gH=maxY-minY+100;
+
+  const hiddenCount = allNodes.length - clusterNodes.length;
+
+  container.innerHTML=`<div class="viz-container" id="graphVizC" style="position:relative">
+    <canvas id="graphCanvas" style="width:100%;height:100%;display:block"></canvas>
+    <div style="position:absolute;top:12px;left:12px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:8px 12px;font-size:10px;color:var(--tx3);z-index:10;max-width:260px">
+      <div style="margin-bottom:4px">🖱 Scroll: Zoom &nbsp;|&nbsp; Sürükle: Gezin</div>
+      <div style="color:var(--warn);margin-bottom:3px">⚡ Büyük BOM: ${allNodes.length} düğüm</div>
+      <div style="color:var(--tx4)">İlk ${MAX_SHOW_DEPTH+1} seviye gösteriliyor. Gizlenen: <b style="color:var(--ac2)">${hiddenCount}</b> parça</div>
+    </div>
+    <div class="viz-legend" style="position:absolute;bottom:12px;left:12px">
+      <div style="font-weight:600;margin-bottom:4px;color:#aaa">Seviye</div>
+      ${depthColors.slice(0,MAX_SHOW_DEPTH+1).map((c,i)=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><div style="width:8px;height:8px;border-radius:50%;background:${c}"></div><span>${['Sistem','Alt Sistem','Bileşen'][i]}</span></div>`).join('')}
+      <div style="display:flex;align-items:center;gap:5px;margin-top:4px;padding-top:4px;border-top:1px solid #333"><div style="width:8px;height:8px;border-radius:50%;border:2px dashed #555"></div><span style="color:#555">Gizlenen parçalar</span></div>
+    </div>
+    <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
+      <button class="viz-btn" onclick="graphZoom(1.3)">＋</button>
+      <button class="viz-btn" onclick="graphZoom(0.7)">−</button>
+      <button class="viz-btn" onclick="graphFit()">Sığdır</button>
+    </div>
+  </div>`;
+
+  const canvas = document.getElementById('graphCanvas');
+  const vizC = document.getElementById('graphVizC');
+  const dpr = window.devicePixelRatio || 1;
+
+  function resizeCanvas() {
+    const rect = vizC.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    drawGraph();
+  }
+
+  window._graphViz = { scale:1, tx:0, ty:0, dragging:false, lastX:0, lastY:0, gW, gH, cX:(minX+maxX)/2, cY:(minY+maxY)/2 };
+  window._graphCanvas = { canvas, clusterNodes, clusterLinks, descCount, dpr };
+
+  function drawGraph() {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const v = window._graphViz;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.scale(dpr * v.scale, dpr * v.scale);
+    ctx.translate(v.tx / v.scale, v.ty / v.scale);
+
+    // Draw edges
+    ctx.globalAlpha = 0.35;
+    for (const l of clusterLinks) {
+      const sn = clusterNodes.find(n=>n.id===l.source), tn = clusterNodes.find(n=>n.id===l.target);
+      if (!sn || !tn) continue;
+      ctx.beginPath();
+      ctx.moveTo(sn.cx, sn.cy);
+      ctx.lineTo(tn.cx, tn.cy);
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Draw nodes
+    for (const n of clusterNodes) {
+      const r = n.depth===0 ? 36 : n.depth===1 ? 24 : 18;
+      const col = depthColors[n.depth % depthColors.length];
+      const dc = descCount[n.id] || 0;
+
+      // Glow for root
+      if (n.depth === 0) {
+        ctx.beginPath(); ctx.arc(n.cx, n.cy, r+10, 0, 2*Math.PI);
+        ctx.fillStyle = col+'30'; ctx.fill();
+      }
+
+      // Circle
+      ctx.beginPath(); ctx.arc(n.cx, n.cy, r, 0, 2*Math.PI);
+      ctx.fillStyle = col + 'dd'; ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+
+      // Descendant badge (dashed ring + count)
+      if (dc > 0) {
+        ctx.beginPath(); ctx.arc(n.cx, n.cy, r+8, 0, 2*Math.PI);
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5;
+        ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+        // Badge
+        const bx=n.cx+r*0.7, by=n.cy-r*0.7;
+        ctx.beginPath(); ctx.arc(bx, by, 12, 0, 2*Math.PI);
+        ctx.fillStyle = '#1e1e2e'; ctx.fill();
+        ctx.strokeStyle = '#6366f1'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#a5b4fc'; ctx.font = '600 9px JetBrains Mono, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const badge = dc>999?Math.round(dc/1000)+'k':String(dc);
+        ctx.fillText(badge, bx, by);
+      }
+
+      // Label
+      const label = n.name.length>22 ? n.name.slice(0,21)+'…' : n.name;
+      ctx.fillStyle = '#ccc'; ctx.font = `${n.depth===0?'700 13':'500 10'}px IBM Plex Sans, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(label, n.cx, n.cy + r + 6);
+      if (n.partNo) {
+        ctx.fillStyle = '#666'; ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText(n.partNo, n.cx, n.cy + r + 20);
+      }
+    }
+    ctx.restore();
+  }
+
+  window._graphDraw = drawGraph;
+  requestAnimationFrame(resizeCanvas);
+
+  // Zoom/pan events on canvas
+  canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.12 : 0.88;
-    const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left), my = (e.clientY - rect.top);
     const v = window._graphViz;
-    const ns = Math.max(0.1, Math.min(5, v.scale * factor));
-    v.tx = mx - (mx - v.tx) * (ns / v.scale); v.ty = my - (my - v.ty) * (ns / v.scale); v.scale = ns;
-    applyGraphTransform();
+    const ns = Math.max(0.05, Math.min(8, v.scale * factor));
+    v.tx = mx - (mx - v.tx) * (ns / v.scale);
+    v.ty = my - (my - v.ty) * (ns / v.scale);
+    v.scale = ns;
+    drawGraph();
   }, { passive: false });
 
-  svg.addEventListener('mousedown', function(e) {
-    if (e.button !== 0) return;
-    const v = window._graphViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
-    svg.style.cursor = 'grabbing';
+  canvas.addEventListener('mousedown', function(e) {
+    if(e.button!==0) return;
+    const v=window._graphViz; v.dragging=true; v.lastX=e.clientX; v.lastY=e.clientY;
+    canvas.style.cursor='grabbing';
   });
   window.addEventListener('mousemove', function(e) {
-    const v = window._graphViz; if (!v || !v.dragging) return;
-    v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
-    v.lastX = e.clientX; v.lastY = e.clientY;
+    const v=window._graphViz; if(!v||!v.dragging) return;
+    v.tx+=e.clientX-v.lastX; v.ty+=e.clientY-v.lastY;
+    v.lastX=e.clientX; v.lastY=e.clientY;
+    if(window._graphDraw) window._graphDraw();
+  });
+  window.addEventListener('mouseup', function() {
+    const v=window._graphViz; if(v) v.dragging=false;
+    const c=document.getElementById('graphCanvas'); if(c) c.style.cursor='grab';
+  });
+  canvas.style.cursor='grab';
+
+  _setupGraphFitForCanvas(gW, gH, (minX+maxX)/2, (minY+maxY)/2);
+}
+
+function _setupGraphFitForCanvas(gW, gH, cX, cY) {
+  window._graphViz.gW = gW; window._graphViz.gH = gH;
+  window._graphViz.cX = cX; window._graphViz.cY = cY;
+  graphFit();
+}
+
+function _attachGraphEvents(svg, isSvg) {
+  if (!svg) return;
+  svg.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const factor=e.deltaY<0?1.12:0.88, rect=svg.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top, v=window._graphViz;
+    const ns=Math.max(0.05,Math.min(8,v.scale*factor));
+    v.tx=mx-(mx-v.tx)*(ns/v.scale); v.ty=my-(my-v.ty)*(ns/v.scale); v.scale=ns;
+    applyGraphTransform();
+  }, {passive:false});
+  svg.addEventListener('mousedown', function(e) {
+    if(e.button!==0) return;
+    const v=window._graphViz; v.dragging=true; v.lastX=e.clientX; v.lastY=e.clientY;
+    svg.style.cursor='grabbing';
+  });
+  window.addEventListener('mousemove', function(e) {
+    const v=window._graphViz; if(!v||!v.dragging) return;
+    v.tx+=e.clientX-v.lastX; v.ty+=e.clientY-v.lastY; v.lastX=e.clientX; v.lastY=e.clientY;
     applyGraphTransform();
   });
   window.addEventListener('mouseup', function() {
-    const v = window._graphViz; if(v) v.dragging = false;
-    const s = document.getElementById('graphSvg'); if(s) s.style.cursor = 'grab';
+    const v=window._graphViz; if(v) v.dragging=false;
+    const s=document.getElementById('graphSvg'); if(s) s.style.cursor='grab';
   });
-  svg.style.cursor = 'grab';
+  svg.style.cursor='grab';
 }
 
 function applyGraphTransform() {
@@ -795,23 +1108,29 @@ function applyGraphTransform() {
 
 function graphZoom(factor) {
   const v = window._graphViz; if (!v) return;
-  const svg = document.getElementById('graphSvg'); if (!svg) return;
-  const rect = svg.getBoundingClientRect();
+  const canvas = document.getElementById('graphCanvas');
+  const svg = document.getElementById('graphSvg');
+  const el = canvas || svg; if (!el) return;
+  const rect = el.getBoundingClientRect();
   const cx = rect.width / 2, cy = rect.height / 2;
-  const ns = Math.max(0.1, Math.min(5, v.scale * factor));
+  const ns = Math.max(0.05, Math.min(8, v.scale * factor));
   v.tx = cx - (cx - v.tx) * (ns / v.scale); v.ty = cy - (cy - v.ty) * (ns / v.scale); v.scale = ns;
-  applyGraphTransform();
+  if (canvas && window._graphDraw) window._graphDraw();
+  else applyGraphTransform();
 }
 
 function graphFit() {
   const v = window._graphViz; if (!v) return;
-  const svg = document.getElementById('graphSvg'); if (!svg) return;
-  const rect = svg.getBoundingClientRect();
+  const canvas = document.getElementById('graphCanvas');
+  const svg = document.getElementById('graphSvg');
+  const el = canvas || svg; if (!el) return;
+  const rect = el.getBoundingClientRect();
   const sx = rect.width / (v.gW + 80), sy = rect.height / (v.gH + 80);
   v.scale = Math.min(sx, sy, 1.5);
   v.tx = rect.width / 2 - v.cX * v.scale;
   v.ty = rect.height / 2 - v.cY * v.scale;
-  applyGraphTransform();
+  if (canvas && window._graphDraw) window._graphDraw();
+  else applyGraphTransform();
 }
 
 // ═══════ REVISIONS ═══════
