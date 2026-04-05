@@ -359,7 +359,22 @@ function renderToolbar(){
     const bulkHtml=S.multiSel&&S.multiSel.length>0?`<div class="bulk-bar"><span>${S.multiSel.length} seçili</span><button onclick="bulkEditQty()">Adet Güncelle</button><button onclick="bulkEditJira()">Jira Key Ata</button><button class="danger" onclick="bulkDelete()">Sil</button><button onclick="clearMultiSel()">✕ İptal</button></div>`:'';
     tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="expandAll()">▼ Aç</button><button class="tool-btn" onclick="collapseAll()">▶ Kapat</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no, seri no, Jira)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJira()">📄 Jira CSV</button><button class="tool-btn" onclick="exportJSON()">💾 JSON</button>`;
     if(S.searchQuery)setTimeout(()=>{const el=document.getElementById('treeSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
-  } else if(S.tab==='org'||S.tab==='graph'){
+  } else if(S.tab==='org'){
+    const ov=S.orgSearch||'';
+    const info=S.orgSearchHits?.length>0?`<span id="orgSearchInfo" style="font-size:10px;color:var(--ac2);min-width:60px">${(S.orgSearchIdx||0)+1}/${S.orgSearchHits.length}</span>`:`<span id="orgSearchInfo" style="font-size:10px;color:var(--tx4);min-width:60px">${S.orgSearchHits?.length===0?'Sonuç yok':''}</span>`;
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Fareyle sürükleyerek gezinebilirsiniz</span>
+      <div class="tool-sep"></div>
+      <div style="position:relative;display:flex;align-items:center">
+        <input id="orgSearch" class="sidebar-search" style="width:200px;padding:5px 28px 5px 28px;font-size:11px" placeholder="Ara: ad, parça no..." value="${ov.replace(/"/g,'&quot;')}" oninput="orgSearchInput(this.value)" onkeydown="orgSearchKeyNav(event)">
+        <span style="position:absolute;left:9px;color:var(--tx4);font-size:12px;pointer-events:none">⌕</span>
+        ${ov?`<span style="position:absolute;right:6px;cursor:pointer;color:var(--tx4);font-size:14px" onclick="orgSearchClear()">×</span>`:''}
+      </div>
+      ${info}
+      <button class="tool-btn" onclick="orgSearchNav(-1)" title="Önceki">↑</button>
+      <button class="tool-btn" onclick="orgSearchNav(1)" title="Sonraki">↓</button>
+      <div class="tool-spacer"></div>`;
+    setTimeout(()=>{const el=document.getElementById('orgSearch');if(el&&ov){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
+  } else if(S.tab==='graph'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Fareyle sürükleyerek gezinebilirsiniz</span><div class="tool-spacer"></div>`;
   } else if(S.tab==='compare'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">İki sistemi karşılaştırın</span><div class="tool-spacer"></div>`;
@@ -582,11 +597,18 @@ function _orgCountDesc(nodes) {
   return c;
 }
 
-function setOrgDepth(d) { S.orgMaxDepth = d; S.orgExpanded = new Set(); renderTab(); }
+function setOrgDepth(d) { S.orgMaxDepth = d; S.orgExpanded = new Set(); S.orgFocusNid = null; renderTab(); }
 function orgToggleNode(nid) {
   if (!S.orgExpanded) S.orgExpanded = new Set();
-  if (S.orgExpanded.has(nid)) S.orgExpanded.delete(nid);
-  else S.orgExpanded.add(nid);
+  if (S.orgExpanded.has(nid)) {
+    // Collapsing: focus on the parent node
+    S.orgExpanded.delete(nid);
+    S.orgFocusNid = S._orgParentOf ? S._orgParentOf[nid] : null;
+  } else {
+    // Expanding: focus on this node's subtree
+    S.orgExpanded.add(nid);
+    S.orgFocusNid = nid;
+  }
   renderTab();
 }
 
@@ -606,11 +628,13 @@ function renderOrgChart(container) {
   const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true, id: 'org-root' };
   const nodeW = 200, nodeH = 72, gapX = 30, gapY = 90;
   const positions = [];
+  const parentMap = {}; // nid → parentNid
   let maxX = 0, maxY = 0;
 
-  function layoutTree(node, depth) {
+  function layoutTree(node, depth, parentNid) {
     const nid = node.id || ('org-' + positions.length);
     node._oid = nid;
+    if (parentNid) parentMap[nid] = parentNid;
     const manuallyExpanded = S.orgExpanded.has(nid);
     const atLimit = depth >= maxD && node.children?.length > 0 && !manuallyExpanded;
 
@@ -618,19 +642,20 @@ function renderOrgChart(container) {
       const x = maxX; maxX += nodeW + gapX;
       const y = depth * (nodeH + gapY);
       if (y + nodeH > maxY) maxY = y + nodeH;
-      positions.push({ node, nid, x, y, w: nodeW, h: nodeH, collapsed: atLimit, descCount: atLimit ? _orgCountDesc(node.children) : 0 });
+      positions.push({ node, nid, parentNid, x, y, w: nodeW, h: nodeH, collapsed: atLimit, descCount: atLimit ? _orgCountDesc(node.children) : 0 });
       return { x: x + nodeW / 2, left: x, right: x + nodeW };
     }
-    const cp = node.children.map(c => layoutTree(c, depth + 1));
+    const cp = node.children.map(c => layoutTree(c, depth + 1, nid));
     const left = Math.min(...cp.map(c => c.left)), right = Math.max(...cp.map(c => c.right));
     const cx = (left + right) / 2 - nodeW / 2;
     const y = depth * (nodeH + gapY);
     if (y + nodeH > maxY) maxY = y + nodeH;
-    // Expanded nodes with children: show collapse button if manually expanded
-    positions.push({ node, nid, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x), collapsed: false, descCount: 0, canCollapse: manuallyExpanded });
+    positions.push({ node, nid, parentNid, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x), collapsed: false, descCount: 0, canCollapse: manuallyExpanded });
     return { x: cx + nodeW / 2, left, right };
   }
-  layoutTree(root, 0);
+  layoutTree(root, 0, null);
+  S._orgParentOf = parentMap;
+  window._orgPositions = positions;
 
   const renderedNodes = positions.length;
   const pad = 80;
@@ -656,7 +681,7 @@ function renderOrgChart(container) {
     const isR = p.node._isRoot;
     if (p.collapsed) {
       // Clickable collapsed node
-      inner += `<g style="cursor:pointer" onclick="orgToggleNode('${p.nid}')">
+      inner += `<g data-nid="${p.nid}" style="cursor:pointer" onclick="orgToggleNode('${p.nid}')">
         <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#151520" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85"/>
         <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="transparent"/>
         <text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>
@@ -670,7 +695,7 @@ function renderOrgChart(container) {
       const sc = isR ? 'rgba(255,255,255,0.7)' : '#818cf8';
       const sc2 = isR ? 'rgba(255,255,255,0.5)' : '#555';
       const clickAttr = p.canCollapse ? `style="cursor:pointer" onclick="orgToggleNode('${p.nid}')"` : '';
-      inner += `<g ${clickAttr}>`;
+      inner += `<g data-nid="${p.nid}" ${clickAttr}>`;
       inner += `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
       inner += `<text x="${p.x+p.w/2}" y="${p.y+24}" text-anchor="middle" fill="${tc}" font-size="13" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
       if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+42}" text-anchor="middle" fill="${sc}" font-size="11" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
@@ -711,8 +736,28 @@ function renderOrgChart(container) {
     </div>
   </div>`;
 
-  window._orgViz = { scale: 1, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0, svgW, svgH };
-  orgFit();
+  // Preserve pan/zoom if we already had a view, otherwise init
+  const prevViz = window._orgViz;
+  window._orgViz = {
+    scale: prevViz ? prevViz.scale : 1,
+    tx: prevViz ? prevViz.tx : 0,
+    ty: prevViz ? prevViz.ty : 0,
+    dragging: false, lastX: 0, lastY: 0, svgW, svgH
+  };
+
+  if (S.orgFocusNid) {
+    _orgZoomToSubtree(S.orgFocusNid, positions);
+    S.orgFocusNid = null;
+  } else if (!prevViz) {
+    orgFit();
+  } else {
+    applyOrgTransform();
+  }
+
+  // Re-apply search highlights after re-render
+  if (S.orgSearchHits?.length) {
+    requestAnimationFrame(() => _orgHighlightApply());
+  }
 
   const svg = document.getElementById('orgSvg');
   svg.addEventListener('wheel', function(e) {
@@ -774,7 +819,201 @@ function orgFit() {
   applyOrgTransform();
 }
 
+function _orgZoomToSubtree(focusNid, positions) {
+  const v = window._orgViz; if (!v) return;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
+
+  // Build nid→position map and children map
+  const posMap = {};
+  positions.forEach(p => posMap[p.nid] = p);
+  const childrenOf = {};
+  positions.forEach(p => {
+    if (p.parentNid) {
+      if (!childrenOf[p.parentNid]) childrenOf[p.parentNid] = [];
+      childrenOf[p.parentNid].push(p.nid);
+    }
+  });
+
+  // Collect all positions in the subtree rooted at focusNid
+  const subtree = [];
+  const walk = nid => {
+    if (posMap[nid]) subtree.push(posMap[nid]);
+    (childrenOf[nid] || []).forEach(walk);
+  };
+  walk(focusNid);
+
+  if (!subtree.length) { applyOrgTransform(); return; }
+
+  // Bounding box of subtree with padding
+  const pad = 60;
+  const minX = Math.min(...subtree.map(p => p.x)) - pad;
+  const maxX = Math.max(...subtree.map(p => p.x + p.w)) + pad;
+  const minY = Math.min(...subtree.map(p => p.y)) - pad;
+  const maxY = Math.max(...subtree.map(p => p.y + p.h)) + pad;
+  const bW = maxX - minX, bH = maxY - minY;
+
+  const rect = svg.getBoundingClientRect();
+  const sx = rect.width / bW, sy = rect.height / bH;
+  v.scale = Math.min(sx, sy, 1.6); // max zoom 1.6x so labels are readable
+  v.tx = rect.width / 2 - (minX + bW / 2) * v.scale;
+  v.ty = rect.height / 2 - (minY + bH / 2) * v.scale;
+  applyOrgTransform();
+}
+
 function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+
+// ═══════ ORG CHART SEARCH ═══════
+let _orgSearchTimer = null;
+S.orgSearch = ''; S.orgSearchHits = []; S.orgSearchIdx = 0;
+
+function orgSearchInput(q) {
+  S.orgSearch = q;
+  if (_orgSearchTimer) clearTimeout(_orgSearchTimer);
+  if (!q || q.length < 2) {
+    S.orgSearchHits = []; S.orgSearchIdx = 0;
+    _orgHighlightApply(); _updateOrgSearchInfo(); return;
+  }
+  _orgSearchTimer = setTimeout(() => _doOrgSearch(q), 250);
+}
+
+function _doOrgSearch(q) {
+  const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+  const ql = q.toLowerCase();
+
+  // Walk raw BOM tree, collect hit node IDs + all ancestor IDs
+  const hitIds = []; // actual node.id values of matches
+  const ancestorIds = new Set(); // ancestors to expand
+
+  const walk = (nodes, ancestors) => {
+    for (const n of nodes) {
+      const curPath = [...ancestors, n.id];
+      const matches = (n.name||'').toLowerCase().includes(ql)
+        || (n.partNo||'').toLowerCase().includes(ql)
+        || (n.serialNo||'').toLowerCase().includes(ql)
+        || (n.jiraKey||'').toLowerCase().includes(ql);
+      if (matches) {
+        hitIds.push(n.id);
+        // All ancestors must be expanded so this node is visible
+        ancestors.forEach(id => ancestorIds.add(id));
+      }
+      if (n.children?.length) walk(n.children, curPath);
+    }
+  };
+  if ((sys.name||'').toLowerCase().includes(ql)) hitIds.push('org-root');
+  walk(sys.children, ['org-root']);
+
+  if (hitIds.length === 0) {
+    S.orgSearchHits = []; S.orgSearchIdx = 0;
+    _orgHighlightApply(); _updateOrgSearchInfo(); return;
+  }
+
+  // Expand all ancestors so hits become visible, then re-render
+  if (!S.orgExpanded) S.orgExpanded = new Set();
+  let needRerender = false;
+  ancestorIds.forEach(id => {
+    if (!S.orgExpanded.has(id)) { S.orgExpanded.add(id); needRerender = true; }
+  });
+
+  // After render, _oid values are assigned — map node.id → _oid via positions
+  const afterRender = () => {
+    const positions = window._orgPositions || [];
+    // Build id→nid map
+    const idToNid = {};
+    positions.forEach(p => { if (p.node.id) idToNid[p.node.id] = p.nid; });
+    idToNid['org-root'] = 'org-root';
+
+    S.orgSearchHits = hitIds.map(id => idToNid[id] || id).filter(Boolean);
+    S.orgSearchIdx = 0;
+    _orgHighlightApply();
+    _updateOrgSearchInfo();
+    if (S.orgSearchHits.length > 0) _orgZoomToHits(S.orgSearchHits);
+  };
+
+  if (needRerender) {
+    renderTab(); // re-render with expanded ancestors
+    requestAnimationFrame(afterRender);
+  } else {
+    afterRender();
+  }
+}
+
+function _orgHighlightApply() {
+  // Remove old highlights
+  document.querySelectorAll('#orgG .org-hit').forEach(el => {
+    el.querySelector('rect')?.setAttribute('stroke', el.dataset.origStroke || '#2e2e34');
+    el.classList.remove('org-hit');
+  });
+  document.querySelectorAll('#orgG .org-hit-cur').forEach(el => el.classList.remove('org-hit-cur'));
+
+  if (!S.orgSearchHits?.length) return;
+  const hitSet = new Set(S.orgSearchHits);
+  const curId = S.orgSearchHits[S.orgSearchIdx];
+
+  document.querySelectorAll('#orgG [data-nid]').forEach(el => {
+    const nid = el.dataset.nid;
+    if (hitSet.has(nid)) {
+      el.classList.add('org-hit');
+      const rect = el.querySelector('rect');
+      if (rect) { el.dataset.origStroke = rect.getAttribute('stroke'); rect.setAttribute('stroke', nid === curId ? '#f59e0b' : '#10b981'); rect.setAttribute('stroke-width', '2.5'); }
+    }
+  });
+}
+
+function _updateOrgSearchInfo() {
+  const el = document.getElementById('orgSearchInfo'); if (!el) return;
+  if (!S.orgSearchHits?.length) {
+    el.textContent = S.orgSearch?.length >= 2 ? 'Sonuç yok' : '';
+  } else {
+    el.textContent = `${S.orgSearchIdx+1}/${S.orgSearchHits.length}`;
+  }
+}
+
+function _orgZoomToHits(hits) {
+  if (!window._orgViz) return;
+  const positions = window._orgPositions; if (!positions) return;
+  const hitSet = new Set(hits);
+  const sub = positions.filter(p => hitSet.has(p.nid));
+  if (!sub.length) return;
+  const pad = 80;
+  const minX = Math.min(...sub.map(p=>p.x))-pad, maxX = Math.max(...sub.map(p=>p.x+p.w))+pad;
+  const minY = Math.min(...sub.map(p=>p.y))-pad, maxY = Math.max(...sub.map(p=>p.y+p.h))+pad;
+  const bW = maxX-minX, bH = maxY-minY;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const v = window._orgViz;
+  v.scale = Math.min(rect.width/bW, rect.height/bH, 1.8);
+  v.tx = rect.width/2 - (minX+bW/2)*v.scale;
+  v.ty = rect.height/2 - (minY+bH/2)*v.scale;
+  applyOrgTransform();
+}
+
+function orgSearchNav(dir) {
+  if (!S.orgSearchHits?.length) return;
+  S.orgSearchIdx = (S.orgSearchIdx + dir + S.orgSearchHits.length) % S.orgSearchHits.length;
+  _orgHighlightApply(); _updateOrgSearchInfo();
+  const positions = window._orgPositions; if (!positions) return;
+  const curId = S.orgSearchHits[S.orgSearchIdx];
+  const p = positions.find(p => p.nid === curId);
+  if (!p) return;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  const v = window._orgViz;
+  const pad = 120;
+  v.scale = Math.min(rect.width/(p.w+pad*2), rect.height/(p.h+pad*2), 1.8);
+  v.tx = rect.width/2 - (p.x+p.w/2)*v.scale;
+  v.ty = rect.height/2 - (p.y+p.h/2)*v.scale;
+  applyOrgTransform();
+}
+
+function orgSearchKeyNav(e) {
+  if (e.key==='Enter') { e.preventDefault(); orgSearchNav(e.shiftKey?-1:1); }
+  if (e.key==='Escape') orgSearchClear();
+}
+
+function orgSearchClear() {
+  S.orgSearch=''; S.orgSearchHits=[]; S.orgSearchIdx=0;
+  _orgHighlightApply(); renderToolbar();
+}
 
 // ═══════ FORCE GRAPH VISUALIZATION ═══════
 const GRAPH_SVG_LIMIT = 250; // above this → canvas mode
