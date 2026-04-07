@@ -741,9 +741,10 @@ function renderOrgChart(container) {
   const maxD = S.orgMaxDepth;
 
   const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true, id: 'org-root' };
-  const nodeW = 200, nodeH = 72, gapX = 30, gapY = 90;
+  // Yukarıdan aşağıya layout: x = yatay konum, y = derinlik * satır yüksekliği
+  const nodeW = 200, nodeH = 56, gapX = 20, gapY = 60;
   const positions = [];
-  const parentMap = {}; // nid → parentNid
+  const parentMap = {};
   let maxX = 0, maxY = 0;
 
   function layoutTree(node, depth, parentNid) {
@@ -752,41 +753,72 @@ function renderOrgChart(container) {
     if (parentNid) parentMap[nid] = parentNid;
     const manuallyExpanded = S.orgExpanded.has(nid);
     const atLimit = depth >= maxD && node.children?.length > 0 && !manuallyExpanded;
+    const y = depth * (nodeH + gapY);
+    if (y + nodeH > maxY) maxY = y + nodeH;
 
     if (!node.children?.length || atLimit) {
       const x = maxX; maxX += nodeW + gapX;
-      const y = depth * (nodeH + gapY);
-      if (y + nodeH > maxY) maxY = y + nodeH;
       positions.push({ node, nid, parentNid, x, y, w: nodeW, h: nodeH, collapsed: atLimit, descCount: atLimit ? _orgCountDesc(node.children) : 0 });
-      return { x: x + nodeW / 2, left: x, right: x + nodeW };
+      return { mid: x + nodeW / 2, left: x, right: x + nodeW };
     }
     const cp = node.children.map(c => layoutTree(c, depth + 1, nid));
     const left = Math.min(...cp.map(c => c.left)), right = Math.max(...cp.map(c => c.right));
     const cx = (left + right) / 2 - nodeW / 2;
-    const y = depth * (nodeH + gapY);
-    if (y + nodeH > maxY) maxY = y + nodeH;
-    positions.push({ node, nid, parentNid, x: cx, y, w: nodeW, h: nodeH, childCenters: cp.map(c => c.x), collapsed: false, descCount: 0, canCollapse: manuallyExpanded });
-    return { x: cx + nodeW / 2, left, right };
+    positions.push({ node, nid, parentNid, x: cx, y, w: nodeW, h: nodeH, childMids: cp.map(c => c.mid), childY: y + nodeH, collapsed: false, descCount: 0, canCollapse: manuallyExpanded });
+    return { mid: cx + nodeW / 2, left, right };
   }
   layoutTree(root, 0, null);
   S._orgParentOf = parentMap;
   window._orgPositions = positions;
 
   const renderedNodes = positions.length;
-  const pad = 80;
+  const pad = 60;
   const svgW = maxX + pad * 2, svgH = maxY + pad * 2 + gapY;
 
-  let inner = '';
-  inner += `<defs><filter id="glow"><feGaussianBlur stdDeviation="4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient></defs>`;
+  // Derinlik renk paleti — her seviye için dolgu ve kontur rengi
+  const DEPTH_COLORS = [
+    {fill:'#1e1b4b',stroke:'#818cf8'},  // 0 - kök (indigo)
+    {fill:'#1a2744',stroke:'#38bdf8'},  // 1 - mavi
+    {fill:'#14342b',stroke:'#34d399'},  // 2 - yeşil
+    {fill:'#2d1b4e',stroke:'#a78bfa'},  // 3 - mor
+    {fill:'#1e3a2f',stroke:'#6ee7b7'},  // 4 - açık yeşil
+    {fill:'#312010',stroke:'#fbbf24'},  // 5 - turuncu
+    {fill:'#1e2d40',stroke:'#60a5fa'},  // 6 - açık mavi
+    {fill:'#3b1f28',stroke:'#f87171'},  // 7 - kırmızı
+    {fill:'#1f3040',stroke:'#7dd3fc'},  // 8
+    {fill:'#2a2010',stroke:'#fcd34d'},  // 9
+  ];
+  function depthColor(d) { return DEPTH_COLORS[d % DEPTH_COLORS.length]; }
 
-  // Edges
+  // Derinlik hesabı: nid → depth (positions'dan)
+  const nidDepth = {};
+  positions.forEach(p => { const d = Math.round(p.y / (nodeH + gapY)); nidDepth[p.nid] = d; });
+
+  let inner = '';
+  inner += `<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glowHover"><feGaussianBlur stdDeviation="6" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient>
+  </defs>`;
+
+  // Edges — yukarıdan aşağıya, derinlik renkli
   for (const p of positions) {
-    if (p.childCenters) {
-      const fx = p.x + p.w / 2, fy = p.y + p.h;
-      for (const cx of p.childCenters) {
-        const my = fy + gapY / 2;
-        inner += `<path d="M${fx},${fy} C${fx},${my} ${cx},${my} ${cx},${fy+gapY}" fill="none" stroke="#3a3a44" stroke-width="2" stroke-linecap="round"/>`;
+    if (p.childMids) {
+      const d = nidDepth[p.nid] || 0;
+      const ec = depthColor(d+1).stroke;
+      const fx = p.x + p.w / 2, fy = p.y + p.h;  // çıkış: alt orta
+      const my = p.childY + (gapY / 2) - (gapY / 4); // yatay hat y konumu
+      const edgeNid = p.nid;
+      // Ebeveynden yatay hatta dikey çizgi
+      inner += `<path class="org-edge" data-pnid="${edgeNid}" d="M${fx},${fy} V${my}" fill="none" stroke="${ec}" stroke-width="1.5" opacity="0.5"/>`;
+      // Yatay hat: tüm çocukları birleştiren
+      if (p.childMids.length > 1) {
+        const leftX = Math.min(...p.childMids), rightX = Math.max(...p.childMids);
+        inner += `<line class="org-edge" data-pnid="${edgeNid}" x1="${leftX}" y1="${my}" x2="${rightX}" y2="${my}" stroke="${ec}" stroke-width="1.5" opacity="0.5"/>`;
+      }
+      // Yatay hattan her çocuğa dikey çizgi
+      for (const mid of p.childMids) {
+        inner += `<path class="org-edge" data-pnid="${edgeNid}" d="M${mid},${my} V${p.childY}" fill="none" stroke="${ec}" stroke-width="1.5" opacity="0.5"/>`;
       }
     }
   }
@@ -799,28 +831,34 @@ function renderOrgChart(container) {
       inner += `<g data-nid="${p.nid}" style="cursor:pointer" onclick="orgToggleNode('${p.nid}')">
         <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#151520" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85"/>
         <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="transparent"/>
-        <text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>
-        <text x="${p.x+p.w/2}" y="${p.y+38}" text-anchor="middle" fill="#6366f1" font-size="12" font-weight="700" font-family="IBM Plex Sans,sans-serif">▶ ${p.descCount} parça</text>
-        <text x="${p.x+p.w/2}" y="${p.y+56}" text-anchor="middle" fill="#5555aa" font-size="9" font-family="IBM Plex Sans,sans-serif">tıkla: aç</text>
+        <text x="${p.x+p.w/2}" y="${p.y+18}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>
+        <text x="${p.x+p.w/2}" y="${p.y+34}" text-anchor="middle" fill="#6366f1" font-size="11" font-weight="700" font-family="IBM Plex Sans,sans-serif">▶ ${p.descCount} parça</text>
+        <text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="#5555aa" font-size="9" font-family="IBM Plex Sans,sans-serif">tıkla: aç</text>
       </g>`;
     } else {
-      const fill = isR ? 'url(#rootGrad)' : '#1c1c21';
-      const stroke = isR ? '#818cf8' : p.canCollapse ? '#10b981' : '#2e2e34';
-      const tc = isR ? '#fff' : '#e5e3df';
-      const sc = isR ? 'rgba(255,255,255,0.7)' : '#818cf8';
-      const sc2 = isR ? 'rgba(255,255,255,0.5)' : '#555';
-      const clickAttr = p.canCollapse ? `style="cursor:pointer" onclick="orgToggleNode('${p.nid}')"` : '';
-      inner += `<g data-nid="${p.nid}" ${clickAttr}>`;
-      inner += `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+24}" text-anchor="middle" fill="${tc}" font-size="13" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
-      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+42}" text-anchor="middle" fill="${sc}" font-size="11" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+58}" text-anchor="middle" fill="${sc2}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
+      const d = nidDepth[p.nid] || 0;
+      const dc = depthColor(d);
+      const fill = isR ? 'url(#rootGrad)' : dc.fill;
+      const stroke = isR ? '#818cf8' : p.canCollapse ? '#10b981' : dc.stroke;
+      const tc = '#e5e3df';
+      const sc = dc.stroke;
+      const sc2 = dc.stroke + '99';
+      const clickAttr = p.canCollapse ? `onclick="orgToggleNode('${p.nid}')"` : '';
+      const descCount = _orgCountDesc(p.node.children);
+      const tooltip = `${p.node.name}${p.node.partNo?' | '+p.node.partNo:''}${descCount?' | '+descCount+' alt parça':''}${p.node.qty>1?' | ×'+p.node.qty:''}`;
+      inner += `<g class="org-node" data-nid="${p.nid}" style="cursor:${p.canCollapse?'pointer':'default'}" ${clickAttr}
+        onmouseenter="orgHoverNode('${p.nid}',true,'${tooltip.replace(/'/g,'&#39;')}')"
+        onmouseleave="orgHoverNode('${p.nid}',false,'')">`;
+      inner += `<rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
+      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+35}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="${sc2}" font-size="9" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
       if (p.node.qty > 1) {
-        inner += `<rect x="${p.x+p.w-34}" y="${p.y-8}" width="38" height="18" rx="9" fill="#f59e0b" opacity="0.9"/>`;
-        inner += `<text x="${p.x+p.w-15}" y="${p.y+6}" text-anchor="middle" fill="#000" font-size="10" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
+        inner += `<rect x="${p.x+p.w-30}" y="${p.y-8}" width="34" height="16" rx="8" fill="#f59e0b" opacity="0.9"/>`;
+        inner += `<text x="${p.x+p.w-13}" y="${p.y+4}" text-anchor="middle" fill="#000" font-size="9" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
       }
       if (p.canCollapse) {
-        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-4}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif">tıkla: kapat</text>`;
+        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-3}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif">kapat</text>`;
       }
       inner += `</g>`;
     }
@@ -872,6 +910,73 @@ function renderOrgChart(container) {
   // Re-apply search highlights after re-render
   if (S.orgSearchHits?.length) {
     requestAnimationFrame(() => _orgHighlightApply());
+  }
+
+  // Tooltip elementi
+  if (!document.getElementById('orgTooltip')) {
+    const tt = document.createElement('div');
+    tt.id = 'orgTooltip';
+    tt.style.cssText = 'position:fixed;background:#1e1e2a;border:1px solid #3a3a55;border-radius:7px;padding:6px 10px;font-size:11px;color:#e5e3df;pointer-events:none;z-index:9999;display:none;max-width:260px;line-height:1.5;box-shadow:0 4px 16px rgba(0,0,0,.5)';
+    document.body.appendChild(tt);
+  }
+
+  window.orgHoverNode = function(nid, enter, tooltipText) {
+    const svg = document.getElementById('orgSvg'); if (!svg) return;
+    const tt = document.getElementById('orgTooltip');
+
+    if (!enter) {
+      // Tüm node'ları normale döndür
+      svg.querySelectorAll('.org-node-rect').forEach(el => {
+        el.style.opacity = ''; el.style.filter = '';
+      });
+      svg.querySelectorAll('.org-edge').forEach(el => {
+        el.style.opacity = '0.5'; el.style.strokeWidth = '';
+      });
+      if (tt) tt.style.display = 'none';
+      return;
+    }
+
+    // Hover tooltip
+    if (tt && tooltipText) {
+      tt.textContent = tooltipText;
+      tt.style.display = 'block';
+      document.addEventListener('mousemove', _orgMoveTooltip);
+    }
+
+    // Ata zincirini bul (nid → kök)
+    const ancestors = new Set();
+    let cur = nid;
+    while (cur) { ancestors.add(cur); cur = S._orgParentOf?.[cur]; }
+
+    // Tüm node'ları soluklaştır, ata zincirini parlat
+    svg.querySelectorAll('.org-node-rect').forEach(el => {
+      const n = el.dataset.nid;
+      if (ancestors.has(n)) {
+        el.style.opacity = '1';
+        el.style.filter = 'url(#glowHover)';
+      } else {
+        el.style.opacity = '0.2';
+        el.style.filter = '';
+      }
+    });
+
+    // Edge'leri de ata zincirine göre vurgula
+    svg.querySelectorAll('.org-edge').forEach(el => {
+      const pnid = el.dataset.pnid;
+      if (ancestors.has(pnid)) {
+        el.style.opacity = '1';
+        el.style.strokeWidth = '2.5';
+      } else {
+        el.style.opacity = '0.08';
+      }
+    });
+  };
+
+  function _orgMoveTooltip(e) {
+    const tt = document.getElementById('orgTooltip'); if (!tt) return;
+    if (tt.style.display === 'none') { document.removeEventListener('mousemove', _orgMoveTooltip); return; }
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top = (e.clientY - 10) + 'px';
   }
 
   const svg = document.getElementById('orgSvg');
