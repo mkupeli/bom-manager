@@ -44,6 +44,10 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tx)
 .sf-btn{flex:1;padding:7px;border-radius:var(--rs);border:1px solid var(--brd);background:var(--sf);color:var(--tx2);font-size:10px;font-family:inherit;cursor:pointer;text-align:center;font-weight:500;transition:all .12s}
 .sf-btn:hover{background:var(--sf2)}.sf-btn.primary{background:var(--ac);border-color:var(--ac);color:#fff}
 .sf-btn.primary:hover{background:#5558e6}
+.ctx-menu{position:fixed;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:4px;z-index:9999;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.ctx-item{padding:7px 12px;border-radius:5px;font-size:12px;cursor:pointer;color:var(--tx2);display:flex;align-items:center;gap:8px}
+.ctx-item:hover{background:var(--sf2)}
+.ctx-item.danger{color:#f87171}.ctx-item.danger:hover{background:rgba(248,113,113,.12)}
 
 /* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -55,7 +59,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tx)
 .tab-bar{display:flex;gap:0;border-bottom:1px solid var(--brd);background:var(--bg2);padding:0 16px;flex-shrink:0}
 .tab-item{padding:8px 14px;font-size:11px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s}
 .tab-item:hover{color:var(--tx2)}.tab-item.active{color:var(--ac2);border-bottom-color:var(--ac)}
-.content{flex:1;overflow:auto;position:relative}.content::-webkit-scrollbar{width:5px}.content::-webkit-scrollbar-thumb{background:var(--sf3);border-radius:3px}
+.content{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}.content::-webkit-scrollbar{width:5px}.content::-webkit-scrollbar-thumb{background:var(--sf3);border-radius:3px}
 
 /* SYSTEM HEADER */
 .sys-hdr{padding:20px 20px 14px;background:linear-gradient(180deg,var(--sf) 0%,transparent 100%)}
@@ -131,9 +135,10 @@ select.field-input{cursor:pointer}
 .cmp-side:last-child{border-right:none}
 .cmp-side-hdr{font-size:11px;font-weight:600;color:var(--tx2);padding:6px 8px;background:var(--sf);border-radius:var(--rs);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .cmp-row{display:flex;align-items:center;gap:5px;padding:5px 8px;font-size:11px;border-radius:4px;margin:1px 0}
-.cmp-row.added{background:rgba(16,185,129,.1);color:var(--ok2)}
+.cmp-row.added{background:rgba(99,102,241,.1);color:#a5b4fc}
 .cmp-row.removed{background:rgba(239,68,68,.1);color:var(--err)}
-.cmp-row.changed{background:rgba(245,158,11,.1);color:var(--warn)}
+.cmp-row.match{background:rgba(16,185,129,.1);color:var(--ok2)}
+.cmp-row.qty-diff{background:rgba(245,158,11,.12);color:var(--warn)}
 .cmp-row.unchanged{color:var(--tx3)}
 .cmp-pn{font-size:9px;color:var(--tx3);font-family:'JetBrains Mono',monospace;margin-left:auto}
 .cmp-badge{font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px}
@@ -235,7 +240,7 @@ select.field-input{cursor:pointer}
 
 <script>
 // ═══════ STATE ═══════
-let S = { systems:[], revisions:[], selSys:null, selNode:null, expanded:{}, tab:"tree", vizMode:"org" };
+let S = { systems:[], revisions:[], selSys:null, selNode:null, expanded:{}, tab:"tree", vizMode:"org", compareFilter:null };
 
 const DEFAULT_SYS = [
   { id:"sys-001",name:"Çok Fonksiyonlu Radar Sistemi",type:"Radar",serialNo:"RDR-2026-A0147",status:"Aktif",icon:"📡",revision:"Rev-C",
@@ -323,13 +328,62 @@ async function init(){
 function renderSidebar(){
   const q=(document.getElementById("sysSearch")?.value||"").toLowerCase();
   document.getElementById("sysList").innerHTML=S.systems.filter(s=>!q||s.name.toLowerCase().includes(q)||s.serialNo.toLowerCase().includes(q)).map(s=>`
-    <div class="sys-item ${S.selSys===s.id?'active':''}" onclick="selSys('${s.id}')">
+    <div class="sys-item ${S.selSys===s.id?'active':''}" onclick="selSys('${s.id}')" oncontextmenu="showSysCtxMenu(event,'${s.id}')">
       <div class="sys-icon-sm">${s.icon}</div>
       <div class="sys-item-info"><div class="sys-item-name">${s.name}</div><div class="sys-item-sub">${s.serialNo}</div></div>
       <div class="sys-item-dot" style="background:${stColor(s.status)}"></div>
     </div>`).join("");
 }
 function filterSystems(){renderSidebar()}
+
+function showSysCtxMenu(e,id){
+  e.preventDefault();e.stopPropagation();
+  closeCtxMenu();
+  const sys=S.systems.find(s=>s.id===id);if(!sys)return;
+  const m=document.createElement('div');
+  m.className='ctx-menu';m.id='sysCtxMenu';
+  m.innerHTML=`
+    <div class="ctx-item" onclick="closeCtxMenu();selSys('${id}')">✏️ Seç</div>
+    <div class="ctx-item" onclick="closeCtxMenu();renameSys('${id}')">📝 Yeniden Adlandır</div>
+    <div class="ctx-item danger" onclick="closeCtxMenu();confirmDeleteSys('${id}')">🗑 Sil</div>`;
+  m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
+  document.body.appendChild(m);
+  setTimeout(()=>document.addEventListener('click',closeCtxMenu,{once:true}),0);
+}
+function closeCtxMenu(){const m=document.getElementById('sysCtxMenu');if(m)m.remove()}
+
+function renameSys(id){
+  const sys=S.systems.find(s=>s.id===id);if(!sys)return;
+  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Sistemi Düzenle</div>
+    <div class="field"><label class="field-label">Sistem Adı</label><input class="field-input" id="rename-input" value="${sys.name.replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="rename-serial" value="${(sys.serialNo||'').replace(/"/g,'&quot;')}"></div>
+    <div class="modal-btns">
+      <button class="modal-btn" onclick="closeModal()">İptal</button>
+      <button class="modal-btn primary" onclick="saveRename('${id}')">Kaydet</button>
+    </div>
+  </div></div>`;
+  setTimeout(()=>{const el=document.getElementById('rename-input');if(el){el.focus();el.select()}},50);
+}
+async function saveRename(id){
+  const v=document.getElementById('rename-input')?.value.trim();
+  const sn=document.getElementById('rename-serial')?.value.trim();
+  if(!v)return;
+  const sys=S.systems.find(s=>s.id===id);if(!sys)return;
+  sys.name=v;if(sn)sys.serialNo=sn;
+  closeModal();await persist();renderSidebar();renderMain();toast("Güncellendi");
+}
+function confirmDeleteSys(id){
+  const sys=S.systems.find(s=>s.id===id);if(!sys)return;
+  showModal("Sistemi Sil",`"${sys.name}" silinecek. Bu işlem geri alınamaz.`,[
+    {text:"İptal"},{text:"Sil",cls:"danger",action:()=>deleteSys(id)}
+  ]);
+}
+async function deleteSys(id){
+  S.systems=S.systems.filter(s=>s.id!==id);
+  if(S.selSys===id){S.selSys=null;S.selNode=null;}
+  await persist();renderSidebar();renderMain();toast("Sistem silindi");
+}
 function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;const sys=S.systems.find(s=>s.id===id);if(sys)sys.children.forEach(c=>{S.expanded[c.id]=true});renderSidebar();renderMain();closeRP()}
 
 // ═══════ MAIN ═══════
@@ -357,7 +411,7 @@ function renderToolbar(){
   const tb=document.getElementById("toolbarArea");if(!tb)return;
   if(S.tab==='tree'){
     const bulkHtml=S.multiSel&&S.multiSel.length>0?`<div class="bulk-bar"><span>${S.multiSel.length} seçili</span><button onclick="bulkEditQty()">Adet Güncelle</button><button onclick="bulkEditJira()">Jira Key Ata</button><button class="danger" onclick="bulkDelete()">Sil</button><button onclick="clearMultiSel()">✕ İptal</button></div>`:'';
-    tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="expandAll()">▼ Aç</button><button class="tool-btn" onclick="collapseAll()">▶ Kapat</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no, seri no, Jira)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJira()">📄 Jira CSV</button><button class="tool-btn" onclick="exportJSON()">💾 JSON</button>`;
+    tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="collapseAll()">▶ Kapat</button>${Array.from({length:21},(_,i)=>`<button class="tool-btn" style="min-width:28px;padding:4px 5px;font-size:10px" onclick="expandToDepth(${i+1})">${i+1}</button>`).join('')}<button class="tool-btn" onclick="expandAll()">▼ Tümü</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no, seri no, Jira)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJira()">📄 Jira CSV</button><button class="tool-btn" onclick="exportJSON()">💾 JSON</button>`;
     if(S.searchQuery)setTimeout(()=>{const el=document.getElementById('treeSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
   } else if(S.tab==='org'){
     const ov=S.orgSearch||'';
@@ -395,17 +449,70 @@ function renderTab(){
 
 // ═══════ TREE VIEW ═══════
 S.multiSel=[];S.dragId=null;
-function renderTree(c){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;c.innerHTML='<div class="tree" id="treeContainer">'+rnodes(sys.children,0)+'</div>';updateSearchInfo()}
-function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of nodes){const has=n.children?.length>0,op=S.expanded[n.id],sel=S.selNode===n.id;
-  const isHit=S.searchHits&&S.searchHits.includes(n.id);const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;
-  const isMulti=S.multiSel.includes(n.id);
-  h+=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px${isCur?';outline:2px solid #f59e0b;outline-offset:-2px':''}" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;
+const TREE_ROW_H = 32; // px per row
+const TREE_OVERSCAN = 20; // extra rows above/below viewport
+
+// Build flat visible list from tree
+function _buildVisibleRows(nodes, d, out) {
+  for (const n of (nodes||[])) {
+    out.push({n, d});
+    if (S.expanded[n.id] && n.children?.length) _buildVisibleRows(n.children, d+1, out);
+  }
+}
+
+function _rowHtml(r) {
+  const n=r.n, d=r.d;
+  const has=n.children?.length>0, op=S.expanded[n.id], sel=S.selNode===n.id;
+  const isHit=S.searchHits&&S.searchHits.includes(n.id);
+  const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;
+  const isMulti=S.multiSel&&S.multiSel.includes(n.id);
+  let h=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px;height:${TREE_ROW_H}px;box-sizing:border-box${isCur?';outline:2px solid #f59e0b;outline-offset:-2px':''}" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;
   h+=`<span class="drag-handle">⠿</span>`;
   h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;
-  h+=`<span class="tl">${n.name}</span>`;if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;
-  h+=`<span class="ts">${n.serialNo}</span>`;if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;
-  if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;if(has)h+=`<span class="tc">${n.children.length}</span>`;
-  h+=`</div>`;if(op&&has)h+=rnodes(n.children,d+1)}return h}
+  h+=`<span class="tl">${n.name}</span>`;
+  if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;
+  h+=`<span class="ts">${n.serialNo||''}</span>`;
+  if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;
+  if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;
+  if(has)h+=`<span class="tc">${n.children.length}</span>`;
+  h+=`</div>`;
+  return h;
+}
+
+let _treeRows=[], _treeScrollEl=null;
+
+function _renderTreeViewport() {
+  const wrap = document.getElementById('treeVWrap'); if(!wrap)return;
+  const scrollTop = wrap.scrollTop;
+  const viewH = wrap.clientHeight || window.innerHeight;
+  const total = _treeRows.length;
+  const startIdx = Math.max(0, Math.floor(scrollTop/TREE_ROW_H) - TREE_OVERSCAN);
+  const endIdx = Math.min(total, Math.ceil((scrollTop+viewH)/TREE_ROW_H) + TREE_OVERSCAN);
+  const topPad = startIdx * TREE_ROW_H;
+  const botPad = (total - endIdx) * TREE_ROW_H;
+  const inner = document.getElementById('treeVInner'); if(!inner)return;
+  inner.style.paddingTop = topPad+'px';
+  inner.style.paddingBottom = botPad+'px';
+  let h='';
+  for(let i=startIdx;i<endIdx;i++) h+=_rowHtml(_treeRows[i]);
+  inner.innerHTML=h;
+}
+
+function renderTree(c){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  _treeRows=[];
+  _buildVisibleRows(sys.children, 0, _treeRows);
+  const total=_treeRows.length;
+  const totalH = total * TREE_ROW_H;
+  const prevScroll = _treeScrollEl ? _treeScrollEl.scrollTop : 0;
+  c.innerHTML=`<div id="treeVWrap" style="flex:1;overflow-y:auto;min-height:0;" onscroll="_renderTreeViewport()"><div id="treeVInner" class="tree" style="min-height:${totalH}px;padding-bottom:24px"></div></div><div style="padding:3px 12px;background:var(--bg2);border-top:1px solid var(--brd);font-size:9px;color:var(--tx4);flex-shrink:0">${total.toLocaleString()} satır gösteriliyor</div>`;
+  _treeScrollEl = document.getElementById('treeVWrap');
+  if(_treeScrollEl && prevScroll) _treeScrollEl.scrollTop=prevScroll;
+  _renderTreeViewport();
+  setTimeout(_renderTreeViewport, 0); // layout hesabı sonrası tekrar çiz
+  updateSearchInfo();
+}
+function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of nodes){const has=n.children?.length>0,op=S.expanded[n.id],sel=S.selNode===n.id;const isHit=S.searchHits&&S.searchHits.includes(n.id);const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;const isMulti=S.multiSel.includes(n.id);h+=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;h+=`<span class="drag-handle">⠿</span>`;h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;h+=`<span class="tl">${n.name}</span>`;if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;h+=`<span class="ts">${n.serialNo}</span>`;if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;if(has)h+=`<span class="tc">${n.children.length}</span>`;h+=`</div>`;if(op&&has)h+=rnodes(n.children,d+1)}return h}
 
 // ═══════ TREE SEARCH ═══════
 S.searchQuery='';S.searchHits=[];S.searchIdx=0;
@@ -494,6 +601,14 @@ function updateSearchInfo(){
   el.title=over?'Çok fazla sonuç: parent\'lar otomatik açılmadı, Enter ile tek tek gez':'';
 }
 function tog(id){S.expanded[id]=!S.expanded[id];renderTab()}
+function expandToDepth(maxD){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const w=(ns,d)=>ns.forEach(n=>{
+    S.expanded[n.id]=d<maxD;
+    if(n.children?.length)w(n.children,d+1);
+  });
+  w(sys.children,0);renderTab();
+}
 function selNode(e,id){
   e.stopPropagation();
   if(e.ctrlKey||e.metaKey){
@@ -619,9 +734,9 @@ function renderOrgChart(container) {
 
   const totalNodes = _orgCountNodes(sys.children) + 1;
 
-  // Auto-set depth limit for large datasets (first time only)
+  // Default: show first 2 levels, user can expand further
   if (S.orgMaxDepth === undefined || S.orgMaxDepth === null) {
-    S.orgMaxDepth = totalNodes > 1000 ? 1 : totalNodes > 300 ? 2 : totalNodes > 80 ? 3 : 99;
+    S.orgMaxDepth = 2;
   }
   const maxD = S.orgMaxDepth;
 
@@ -711,10 +826,10 @@ function renderOrgChart(container) {
     }
   }
 
-  const depthOpts = [1,2,3,4,99].map(d => {
-    const lbl = d===99?'Tümü':`Lvl ${d}`;
+  const depthOpts = [...Array.from({length:21},(_,i)=>i+1),99].map(d => {
+    const lbl = d===99?'Tümü':`${d}`;
     const act = maxD===d?'background:var(--ac);color:#fff;border-color:var(--ac)':'';
-    return `<button class="viz-btn" style="${act}" onclick="setOrgDepth(${d})">${lbl}</button>`;
+    return `<button class="viz-btn" style="min-width:24px;padding:3px 5px;font-size:10px;${act}" onclick="setOrgDepth(${d})">${lbl}</button>`;
   }).join('');
 
   container.innerHTML = `<div class="viz-container" id="orgVizC">
@@ -1382,9 +1497,17 @@ function renderRevisions(c){
 function showNodeRP(id){
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
   const n=find(sys.children,id);if(!n)return;
+  const row=_treeRows.find(r=>r.n.id===id);
+  const depth=row?row.d+1:'-';
   document.getElementById("rpanel").classList.remove("hidden");
   document.getElementById("rpTitle").textContent="Parça Detayı";
   document.getElementById("rpBody").innerHTML=`
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding:6px 10px;background:var(--sf);border-radius:6px;border:1px solid var(--brd)">
+      <span style="font-size:10px;color:var(--tx3)">Düzey</span>
+      <span style="font-size:18px;font-weight:700;color:var(--ac2)">${depth}</span>
+      <span style="font-size:10px;color:var(--tx4);margin-left:2px">/ ağaç derinliği</span>
+      ${n.children?.length?`<span style="margin-left:auto;font-size:10px;color:var(--tx3)">${n.children.length} alt parça</span>`:''}
+    </div>
     <div class="field"><label class="field-label">Parça Adı</label><input class="field-input" id="nd-n" value="${n.name}"></div>
     <div class="field"><label class="field-label">Parça No</label><input class="field-input mono" id="nd-p" value="${n.partNo||''}"></div>
     <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="nd-s" value="${n.serialNo||''}"></div>
@@ -1480,14 +1603,18 @@ async function importExcel(){
   
   // Store data globally for processing
   window._xlData = sheet.data;
+  window._xlFileName = result.filePath ? result.filePath.split(/[\\/]/).pop().replace(/\.[^.]+$/, '') : null;
 
   // Auto-detect columns
   const hl = headers.map(h => (h||'').toString().toLowerCase());
-  const autoMap = { name: ['name','ad','parça','part','summary','açıklama','description','item'],
-    pn:['partno','part no','parça no','pn','part_no','malzeme'],sn:['serialno','serial','seri','sn','serial_no'],
-    qty:['qty','quantity','adet','miktar','count'],jira:['jira','key','issue','ticket'],
-    parent:['parent','üst','parent_id','parentid'],level:['level','seviye','indent','depth','lvl'],
-    id:['id','no','numara','item_id'] };
+  const autoMap = { name: ['bileşen kısa tanımı','bileşen kısa tanimi','kısa tanım','kisa tanim','name','summary','description','item','tanım'],
+    pn:['bileşen stok','bilesen stok','partno','part no','parça no','pn','part_no'],
+    sn:['serialno','serial','seri no','sn','serial_no'],
+    qty:['bileşen miktarı','bilesen miktari','temel ölçü biriminde','qty','quantity','adet','miktar','count'],
+    jira:['jira','key','issue','ticket'],
+    parent:['malzeme stok','parent','üst','parent_id','parentid'],
+    level:['düzey','duzey','level','seviye','indent','depth','lvl'],
+    id:['id','item_id'] };
   
   for(const[field,keywords]of Object.entries(autoMap)){
     const idx=hl.findIndex(h=>keywords.some(k=>h.includes(k)));
@@ -1504,7 +1631,7 @@ async function processExcel(){
 
   const rows=data.slice(1).filter(r=>r[nameCol]);
   const sysId=gid();
-  const sysName="Excel Import — "+new Date().toLocaleDateString("tr-TR");
+  const sysName=window._xlFileName||("Excel Import — "+new Date().toLocaleDateString("tr-TR"));
   
   // Build tree
   let children=[];
@@ -1588,50 +1715,131 @@ function renderCompare(container){
   S.compareTarget=selId;
   const target=S.systems.find(s=>s.id===selId);if(!target)return;
 
-  // Flatten both trees
   const flatA=flattenBOM(sys.children,'');
   const flatB=flattenBOM(target.children,'');
 
-  // Build maps by partNo+name
-  const mapA=new Map(),mapB=new Map();
-  flatA.forEach(n=>{const k=bomKey(n);mapA.set(k,n)});
-  flatB.forEach(n=>{const k=bomKey(n);mapB.set(k,n)});
+  // Ad + seviye bazında map — her (ad, derinlik) kombinasyonu ayrı satır
+  const mapA=new Map(), mapB=new Map();
+  flatA.forEach(n=>{
+    const k=n.name.toLowerCase().trim()+'::'+n._depth;
+    if(mapA.has(k)){const x=mapA.get(k);x.qty+=n.qty||1}
+    else mapA.set(k,{...n,qty:n.qty||1});
+  });
+  flatB.forEach(n=>{
+    const k=n.name.toLowerCase().trim()+'::'+n._depth;
+    if(mapB.has(k)){const x=mapB.get(k);x.qty+=n.qty||1}
+    else mapB.set(k,{...n,qty:n.qty||1});
+  });
 
-  // Diff
-  const added=[],removed=[],changed=[],unchanged=[];
-  for(const[k,n]of mapA){
-    if(!mapB.has(k)){removed.push({...n,_diff:'removed'})}
-    else{const b=mapB.get(k);if(n.qty!==b.qty||n.serialNo!==b.serialNo){changed.push({a:n,b,_diff:'changed'})}else{unchanged.push(n)}}
+  // Kategorize et — seviyeye göre sırala
+  const matched=[],qtyDiff=[],onlyA=[],onlyB=[];
+  for(const[k,a]of mapA){
+    if(!mapB.has(k)){onlyA.push(a)}
+    else{
+      const b=mapB.get(k);
+      if(a.qty===b.qty){matched.push({a,b})}
+      else{qtyDiff.push({a,b})}
+    }
   }
-  for(const[k,n]of mapB){if(!mapA.has(k)){added.push({...n,_diff:'added'})}}
+  for(const[k,b]of mapB){if(!mapA.has(k)){onlyB.push(b)}}
+
+  matched.sort((x,y)=>x.a._depth-y.a._depth);
+  qtyDiff.sort((x,y)=>x.a._depth-y.a._depth);
+  onlyA.sort((x,y)=>x._depth-y._depth);
+  onlyB.sort((x,y)=>x._depth-y._depth);
+
+  const totalA=mapA.size, totalB=mapB.size;
+  const matchPct=Math.round(matched.length/Math.max(totalA,1)*100);
+  const qtyPct=Math.round(qtyDiff.length/Math.max(totalA,1)*100);
 
   const opts=others.map(s=>`<option value="${s.id}" ${s.id===selId?'selected':''}>${s.icon} ${s.name}</option>`).join('');
 
+  const rowA=(items,cls,badge,showQty)=>items.map(({a,b})=>{
+    const n=a;
+    return `<div class="cmp-row ${cls}" style="padding-left:${8+n._depth*12}px">
+      <span class="cmp-badge ${badge}">${badge==='ok'?'✓':badge==='qty'?'≠':badge==='rem'?'−':'+'}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${n.name}">${n.name}</span>
+      <span class="cmp-pn">${n.partNo||''} ${showQty?'×'+n.qty:''}</span>
+    </div>`;
+  }).join('');
+
+  const rowB=(items,cls,badge)=>items.map(n=>`<div class="cmp-row ${cls}" style="padding-left:${8+n._depth*12}px">
+    <span class="cmp-badge ${badge}">${badge==='ok'?'✓':badge==='qty'?'≠':badge==='add'?'+':'−'}</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${n.name}">${n.name}</span>
+    <span class="cmp-pn">${n.partNo||''} ×${n.qty}</span>
+  </div>`).join('');
+
+  const rowQtyB=qtyDiff.map(({a,b})=>`<div class="cmp-row qty-diff" style="padding-left:${8+b._depth*12}px">
+    <span class="cmp-badge qty">≠</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${b.name}">${b.name}</span>
+    <span class="cmp-pn" style="color:var(--warn)">×${b.qty} <span style="color:var(--tx4)">(A:×${a.qty})</span></span>
+  </div>`).join('');
+
   container.innerHTML=`
-    <div class="cmp-summary">
-      <span style="font-weight:600;margin-right:8px">Karşılaştır:</span>
+    <div style="display:flex;flex-direction:column;height:100%">
+    <div class="cmp-summary" style="flex-wrap:wrap;gap:8px 16px">
+      <span style="font-weight:600">Karşılaştır:</span>
       <span style="color:var(--ac2)">${sys.icon} ${sys.name}</span>
       <span style="color:var(--tx3)">↔</span>
       <select class="cmp-select" onchange="S.compareTarget=this.value;renderTab()">${opts}</select>
       <div class="tool-spacer"></div>
-      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--ok)"></div><span style="color:var(--ok)">${added.length} eklenen</span></div>
-      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--err)"></div><span style="color:var(--err)">${removed.length} kaldırılan</span></div>
-      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--warn)"></div><span style="color:var(--warn)">${changed.length} değişen</span></div>
-      <div class="cmp-stat"><span style="color:var(--tx3)">${unchanged.length} aynı</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--ok)"></div><span style="color:var(--ok)">${matched.length} tam eşleşme (${matchPct}%)</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--warn)"></div><span style="color:var(--warn)">${qtyDiff.length} adet farklı (${qtyPct}%)</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:var(--err)"></div><span style="color:var(--err)">${onlyA.length} yalnızca A'da</span></div>
+      <div class="cmp-stat"><div class="cmp-dot" style="background:#818cf8"></div><span style="color:#a5b4fc">${onlyB.length} yalnızca B'de</span></div>
     </div>
-    <div class="cmp-layout">
-      <div class="cmp-side">
-        <div class="cmp-side-hdr">${sys.icon} ${sys.name} <span style="color:var(--tx3);font-size:9px">(${flatA.length} parça)</span></div>
-        ${removed.map(n=>`<div class="cmp-row removed" style="padding-left:${8+n._depth*14}px"><span class="cmp-badge rem">−</span><span>${n.name}</span><span class="cmp-pn">${n.partNo||''} ${n.qty>1?'×'+n.qty:''}</span></div>`).join('')}
-        ${changed.map(c=>`<div class="cmp-row changed" style="padding-left:${8+c.a._depth*14}px"><span class="cmp-badge chg">≠</span><span>${c.a.name}</span><span class="cmp-pn">${c.a.partNo||''} ×${c.a.qty} SN:${c.a.serialNo}</span></div>`).join('')}
-        ${unchanged.map(n=>`<div class="cmp-row unchanged" style="padding-left:${8+n._depth*14}px"><span>${n.name}</span><span class="cmp-pn">${n.partNo||''}</span></div>`).join('')}
-      </div>
-      <div class="cmp-side">
-        <div class="cmp-side-hdr">${target.icon} ${target.name} <span style="color:var(--tx3);font-size:9px">(${flatB.length} parça)</span></div>
-        ${added.map(n=>`<div class="cmp-row added" style="padding-left:${8+n._depth*14}px"><span class="cmp-badge add">+</span><span>${n.name}</span><span class="cmp-pn">${n.partNo||''} ${n.qty>1?'×'+n.qty:''}</span></div>`).join('')}
-        ${changed.map(c=>`<div class="cmp-row changed" style="padding-left:${8+c.b._depth*14}px"><span class="cmp-badge chg">≠</span><span>${c.b.name}</span><span class="cmp-pn">${c.b.partNo||''} ×${c.b.qty} SN:${c.b.serialNo}</span></div>`).join('')}
-        ${unchanged.map(n=>`<div class="cmp-row unchanged" style="padding-left:${8+n._depth*14}px"><span>${n.name}</span><span class="cmp-pn">${n.partNo||''}</span></div>`).join('')}
-      </div>
+
+    <!-- İstatistik kartları -->
+    ${(()=>{
+      const f=S.compareFilter;
+      const card=(key,bg,border,labelColor,label,val,sub)=>{
+        const active=f===key;
+        return `<div onclick="S.compareFilter=S.compareFilter==='${key}'?null:'${key}';renderTab()" style="flex:1;min-width:120px;background:${active?bg.replace('.08','.22'):bg};border:2px solid ${active?border:border.replace(',.2)',',0.15)')};border-radius:8px;padding:10px 14px;cursor:pointer;transition:all .12s;user-select:none">
+          <div style="font-size:9px;color:${labelColor};text-transform:uppercase;letter-spacing:1px">${label}${active?' ▸':''}</div>
+          <div style="font-size:22px;font-weight:700;color:${labelColor==='var(--tx3)'?'var(--tx)':labelColor}">${val}</div>
+          <div style="font-size:9px;color:var(--tx3)">${sub}</div>
+        </div>`;
+      };
+      return `<div style="display:flex;gap:8px;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--brd);flex-wrap:wrap">
+        ${card(null,'var(--sf)','var(--brd)','var(--tx3)','Tümü',totalA+'+'+totalB,'tıkla: filtreyi kaldır')}
+        ${card('match','rgba(16,185,129,.08)','rgba(16,185,129,.2)','var(--ok)','Tam Eşleşme',matched.length,'ad + adet birebir aynı')}
+        ${card('qty','rgba(245,158,11,.08)','rgba(245,158,11,.2)','var(--warn)','Adet Farklı',qtyDiff.length,'ad aynı, miktar değişmiş')}
+        ${card('onlyA','rgba(239,68,68,.08)','rgba(239,68,68,.2)','var(--err)','Yalnızca A',onlyA.length,"B'de bulunmuyor")}
+        ${card('onlyB','rgba(99,102,241,.08)','rgba(99,102,241,.2)','#a5b4fc','Yalnızca B',onlyB.length,"A'da bulunmuyor")}
+        <div style="flex:1;min-width:120px;background:var(--sf);border:1px solid var(--brd);border-radius:8px;padding:10px 14px">
+          <div style="font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:1px">Eşleşme Oranı</div>
+          <div style="font-size:22px;font-weight:700;color:${matchPct>=80?'var(--ok)':matchPct>=50?'var(--warn)':'var(--err)'}">${matchPct}%</div>
+          <div style="font-size:9px;color:var(--tx3)">tam eşleşen / toplam A</div>
+        </div>
+      </div>`;
+    })()}
+
+    ${(()=>{
+      const f=S.compareFilter;
+      const showMatch=!f||f==='match';
+      const showQty=!f||f==='qty';
+      const showOnlyA=!f||f==='onlyA';
+      const showOnlyB=!f||f==='onlyB';
+      const filterLabel=f==='match'?'Tam Eşleşme':f==='qty'?'Adet Farklı':f==='onlyA'?'Yalnızca A':f==='onlyB'?'Yalnızca B':'Tümü';
+      const countA=(showMatch?matched.length:0)+(showQty?qtyDiff.length:0)+(showOnlyA?onlyA.length:0);
+      const countB=(showMatch?matched.length:0)+(showQty?qtyDiff.length:0)+(showOnlyB?onlyB.length:0);
+      return `<div class="cmp-layout" style="flex:1;overflow:hidden">
+        <div class="cmp-side">
+          <div class="cmp-side-hdr">${sys.icon} ${sys.name} <span style="color:var(--tx3);font-size:9px">(${countA} parça gösteriliyor)</span></div>
+          ${showMatch?matched.map(({a})=>`<div class="cmp-row match" style="padding-left:${8+a._depth*12}px"><span class="cmp-badge ok" style="background:rgba(16,185,129,.15);color:var(--ok)">✓</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</span><span class="cmp-pn">×${a.qty}</span></div>`).join(''):''}
+          ${showQty?qtyDiff.map(({a})=>`<div class="cmp-row qty-diff" style="padding-left:${8+a._depth*12}px"><span class="cmp-badge qty" style="background:rgba(245,158,11,.15);color:var(--warn)">≠</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</span><span class="cmp-pn" style="color:var(--warn)">×${a.qty}</span></div>`).join(''):''}
+          ${showOnlyA?onlyA.map(n=>`<div class="cmp-row removed" style="padding-left:${8+n._depth*12}px"><span class="cmp-badge rem" style="background:rgba(239,68,68,.15);color:var(--err)">−</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.name}</span><span class="cmp-pn">×${n.qty}</span></div>`).join(''):''}
+          ${countA===0?'<div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">Bu kategoride kayıt yok</div>':''}
+        </div>
+        <div class="cmp-side" style="border-right:none">
+          <div class="cmp-side-hdr">${target.icon} ${target.name} <span style="color:var(--tx3);font-size:9px">(${countB} parça gösteriliyor)</span></div>
+          ${showMatch?matched.map(({b})=>`<div class="cmp-row match" style="padding-left:${8+b._depth*12}px"><span class="cmp-badge ok" style="background:rgba(16,185,129,.15);color:var(--ok)">✓</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.name}</span><span class="cmp-pn">×${b.qty}</span></div>`).join(''):''}
+          ${showQty?qtyDiff.map(({b,a})=>`<div class="cmp-row qty-diff" style="padding-left:${8+b._depth*12}px"><span class="cmp-badge qty" style="background:rgba(245,158,11,.15);color:var(--warn)">≠</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.name}</span><span class="cmp-pn" style="color:var(--warn)">×${b.qty} <span style="color:var(--tx4);font-size:8px">(A:×${a.qty})</span></span></div>`).join(''):''}
+          ${showOnlyB?onlyB.map(n=>`<div class="cmp-row added" style="padding-left:${8+n._depth*12}px"><span class="cmp-badge add" style="background:rgba(99,102,241,.15);color:#a5b4fc">+</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.name}</span><span class="cmp-pn">×${n.qty}</span></div>`).join(''):''}
+          ${countB===0?'<div style="padding:20px;text-align:center;color:var(--tx3);font-size:11px">Bu kategoride kayıt yok</div>':''}
+        </div>
+      </div>`;
+    })()}
     </div>`;
 }
 function flattenBOM(nodes,parentPath,depth=0){
@@ -1643,7 +1851,7 @@ function flattenBOM(nodes,parentPath,depth=0){
   }
   return result;
 }
-function bomKey(n){return (n.partNo||'')+':'+(n.name||'').toLowerCase()+':'+n._path.toLowerCase()}
+function bomKey(n){return (n.partNo||'')+':'+(n.name||'').toLowerCase()}
 
 // ═══════ DASHBOARD ═══════
 function renderDashboard(container){
