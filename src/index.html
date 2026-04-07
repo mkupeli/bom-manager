@@ -397,7 +397,9 @@ function renderMain(){
     <div class="tab-bar">
       <div class="tab-item ${S.tab==='tree'?'active':''}" onclick="switchTab('tree')">🌳 Ürün Ağacı</div>
       <div class="tab-item ${S.tab==='org'?'active':''}" onclick="switchTab('org')">📊 Org Chart</div>
-      <div class="tab-item ${S.tab==='graph'?'active':''}" onclick="switchTab('graph')">🔗 Graf</div>
+      <div class="tab-item ${S.tab==='sunburst'?'active':''}" onclick="switchTab('sunburst')">🌀 Sunburst</div>
+      <div class="tab-item ${S.tab==='bomtable'?'active':''}" onclick="switchTab('bomtable')">📋 BOM Tablosu</div>
+      <div class="tab-item ${S.tab==='dsm'?'active':''}" onclick="switchTab('dsm')">⊞ Analiz</div>
       <div class="tab-item ${S.tab==='rev'?'active':''}" onclick="switchTab('rev')">📝 Revizyonlar</div>
       <div class="tab-item ${S.tab==='compare'?'active':''}" onclick="switchTab('compare')">🔀 Karşılaştır</div>
       <div class="tab-item ${S.tab==='dashboard'?'active':''}" onclick="switchTab('dashboard')">📈 Dashboard</div>
@@ -428,20 +430,31 @@ function renderToolbar(){
       <button class="tool-btn" onclick="orgSearchNav(1)" title="Sonraki">↓</button>
       <div class="tool-spacer"></div>`;
     setTimeout(()=>{const el=document.getElementById('orgSearch');if(el&&ov){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
-  } else if(S.tab==='graph'){
-    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Fareyle sürükleyerek gezinebilirsiniz</span><div class="tool-spacer"></div>`;
+  } else if(S.tab==='sunburst'){
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Dilime tıkla: içine gir &nbsp;|&nbsp; Ortaya tıkla veya breadcrumb: geri çık</span><div class="tool-spacer"></div>`;
+  } else if(S.tab==='bomtable'){
+    const q=S.bomTableSearch||'';
+    tb.innerHTML=`<input id="bomTableSearch" class="sidebar-search" style="width:220px;padding:5px 9px;font-size:11px" placeholder="Filtrele: ad, parça no..." value="${q.replace(/"/g,'&quot;')}" oninput="bomTableFilter(this.value)">
+      <span style="font-size:10px;color:var(--tx3);margin-left:8px" id="bomTableInfo"></span>
+      <div class="tool-spacer"></div>
+      <button class="tool-btn" onclick="exportBomTableCSV()">⬇ CSV İndir</button>`;
+    setTimeout(()=>{updateBomTableInfo();},0);
+  } else if(S.tab==='dsm'){
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Alt sistem bazında parça, Jira ve kalite metrikleri karşılaştırması</span><div class="tool-spacer"></div>`;
   } else if(S.tab==='compare'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">İki sistemi karşılaştırın</span><div class="tool-spacer"></div>`;
   } else { tb.innerHTML=''; }
 }
 
-function switchTab(t){S.tab=t;renderMain()}
+function switchTab(t){S.tab=t;if(t==='sunburst'){S.sbFocus=null;S.sbPath=[];}renderMain()}
 
 function renderTab(){
   const el=document.getElementById("tabContent");if(!el)return;
   if(S.tab==='tree')renderTree(el);
   else if(S.tab==='org')renderOrgChart(el);
-  else if(S.tab==='graph')renderForceGraph(el);
+  else if(S.tab==='sunburst')renderSunburst(el);
+  else if(S.tab==='bomtable')renderBomTable(el);
+  else if(S.tab==='dsm')renderDSM(el);
   else if(S.tab==='compare')renderCompare(el);
   else if(S.tab==='dashboard')renderDashboard(el);
   else renderRevisions(el);
@@ -713,6 +726,7 @@ function _orgCountDesc(nodes) {
 }
 
 function setOrgDepth(d) { S.orgMaxDepth = d; S.orgExpanded = new Set(); S.orgFocusNid = null; renderTab(); }
+function orgCollapseAll() { S.orgExpanded = new Set(); S.orgFocusNid = null; renderTab(); orgFit(); }
 function orgToggleNode(nid) {
   if (!S.orgExpanded) S.orgExpanded = new Set();
   if (S.orgExpanded.has(nid)) {
@@ -883,6 +897,7 @@ function renderOrgChart(container) {
       <div style="color:var(--tx4);font-size:9px">${renderedNodes} gösteriliyor / ${totalNodes} toplam</div>
     </div>
     <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;z-index:10">
+      <button class="viz-btn" onclick="orgCollapseAll()" title="Tüm açık dalları kapat">✕ Tümünü Kapat</button>
       <button class="viz-btn" onclick="orgZoom(1.3)">＋</button>
       <button class="viz-btn" onclick="orgZoom(0.7)">−</button>
       <button class="viz-btn" onclick="orgFit()">Sığdır</button>
@@ -1086,6 +1101,35 @@ function truncate(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
 let _orgSearchTimer = null;
 S.orgSearch = ''; S.orgSearchHits = []; S.orgSearchIdx = 0;
 
+// Pre-built parent map for fast ancestor lookup (rebuilt when BOM changes)
+let _orgParentMapCache = null; // id → parentId
+let _orgParentMapSysId = null;
+
+function _getOrgParentMap(sys) {
+  if (_orgParentMapSysId === sys.id && _orgParentMapCache) return _orgParentMapCache;
+  const map = {};
+  const walk = (nodes, parentId) => {
+    for (const n of nodes) {
+      if (n.id) map[n.id] = parentId;
+      if (n.children?.length) walk(n.children, n.id);
+    }
+  };
+  walk(sys.children, 'org-root');
+  _orgParentMapCache = map;
+  _orgParentMapSysId = sys.id;
+  return map;
+}
+
+function _getAncestors(id, parentMap) {
+  const ancestors = [];
+  let cur = parentMap[id];
+  while (cur && cur !== 'org-root') { ancestors.push(cur); cur = parentMap[cur]; }
+  if (cur === 'org-root') ancestors.push('org-root');
+  return ancestors;
+}
+
+const ORG_SEARCH_MAX_EXPAND = 30; // max hits that trigger full re-render with expansion
+
 function orgSearchInput(q) {
   S.orgSearch = q;
   if (_orgSearchTimer) clearTimeout(_orgSearchTimer);
@@ -1093,68 +1137,62 @@ function orgSearchInput(q) {
     S.orgSearchHits = []; S.orgSearchIdx = 0;
     _orgHighlightApply(); _updateOrgSearchInfo(); return;
   }
-  _orgSearchTimer = setTimeout(() => _doOrgSearch(q), 250);
+  _orgSearchTimer = setTimeout(() => _doOrgSearch(q), 350);
 }
 
 function _doOrgSearch(q) {
   const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
   const ql = q.toLowerCase();
+  const parentMap = _getOrgParentMap(sys);
 
-  // Walk raw BOM tree, collect hit node IDs + all ancestor IDs
-  const hitIds = []; // actual node.id values of matches
-  const ancestorIds = new Set(); // ancestors to expand
-
-  const walk = (nodes, ancestors) => {
+  // Fast walk: no array spreading, just collect hit IDs
+  const hitIds = [];
+  const walk = (nodes) => {
     for (const n of nodes) {
-      const curPath = [...ancestors, n.id];
-      const matches = (n.name||'').toLowerCase().includes(ql)
+      if ((n.name||'').toLowerCase().includes(ql)
         || (n.partNo||'').toLowerCase().includes(ql)
         || (n.serialNo||'').toLowerCase().includes(ql)
-        || (n.jiraKey||'').toLowerCase().includes(ql);
-      if (matches) {
+        || (n.jiraKey||'').toLowerCase().includes(ql)) {
         hitIds.push(n.id);
-        // All ancestors must be expanded so this node is visible
-        ancestors.forEach(id => ancestorIds.add(id));
       }
-      if (n.children?.length) walk(n.children, curPath);
+      if (n.children?.length) walk(n.children);
     }
   };
   if ((sys.name||'').toLowerCase().includes(ql)) hitIds.push('org-root');
-  walk(sys.children, ['org-root']);
+  walk(sys.children);
 
   if (hitIds.length === 0) {
     S.orgSearchHits = []; S.orgSearchIdx = 0;
     _orgHighlightApply(); _updateOrgSearchInfo(); return;
   }
 
-  // Expand all ancestors so hits become visible, then re-render
   if (!S.orgExpanded) S.orgExpanded = new Set();
+
+  // Always expand ancestors, but cap at ORG_SEARCH_MAX_EXPAND to avoid freeze
+  const visibleHitIds = hitIds.slice(0, ORG_SEARCH_MAX_EXPAND);
+  S._orgSearchTotalHits = hitIds.length; // for info display
+
   let needRerender = false;
-  ancestorIds.forEach(id => {
-    if (!S.orgExpanded.has(id)) { S.orgExpanded.add(id); needRerender = true; }
+  visibleHitIds.forEach(id => {
+    _getAncestors(id, parentMap).forEach(aid => {
+      if (!S.orgExpanded.has(aid)) { S.orgExpanded.add(aid); needRerender = true; }
+    });
   });
 
-  // After render, _oid values are assigned — map node.id → _oid via positions
   const afterRender = () => {
     const positions = window._orgPositions || [];
-    // Build id→nid map
     const idToNid = {};
     positions.forEach(p => { if (p.node.id) idToNid[p.node.id] = p.nid; });
     idToNid['org-root'] = 'org-root';
-
-    S.orgSearchHits = hitIds.map(id => idToNid[id] || id).filter(Boolean);
+    S.orgSearchHits = visibleHitIds.map(id => idToNid[id] || id).filter(Boolean);
     S.orgSearchIdx = 0;
     _orgHighlightApply();
     _updateOrgSearchInfo();
     if (S.orgSearchHits.length > 0) _orgZoomToHits(S.orgSearchHits);
   };
 
-  if (needRerender) {
-    renderTab(); // re-render with expanded ancestors
-    requestAnimationFrame(afterRender);
-  } else {
-    afterRender();
-  }
+  if (needRerender) { renderTab(); requestAnimationFrame(afterRender); }
+  else afterRender();
 }
 
 function _orgHighlightApply() {
@@ -1184,7 +1222,9 @@ function _updateOrgSearchInfo() {
   if (!S.orgSearchHits?.length) {
     el.textContent = S.orgSearch?.length >= 2 ? 'Sonuç yok' : '';
   } else {
-    el.textContent = `${S.orgSearchIdx+1}/${S.orgSearchHits.length}`;
+    const total = S._orgSearchTotalHits || S.orgSearchHits.length;
+    const suffix = total > S.orgSearchHits.length ? ` (toplam ${total})` : '';
+    el.textContent = `${S.orgSearchIdx+1}/${S.orgSearchHits.length}${suffix}`;
   }
 }
 
@@ -1958,6 +1998,446 @@ function flattenBOM(nodes,parentPath,depth=0){
 }
 function bomKey(n){return (n.partNo||'')+':'+(n.name||'').toLowerCase()}
 
+// ═══════ SUNBURST (Zoomable Drill-Down) ═══════
+// Her seferinde sadece 2 seviye: merkez (odak) + çocukları.
+// Tıklayınca o dala iner, merkeze tıklayınca çıkar. Breadcrumb navigasyon.
+
+S.sbFocus = null; // null = root
+S.sbPath = [];    // breadcrumb stack [{node, name}]
+
+function _sbCountLeaves(node) {
+  if (!node.children?.length) return Math.max(node.qty || 1, 1);
+  return node.children.reduce((s, c) => s + _sbCountLeaves(c), 0);
+}
+
+function sbDrillDown(idx) {
+  const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+  const focusChildren = S.sbFocus ? S.sbFocus.children : sys.children;
+  const child = focusChildren[idx];
+  if (!child || !child.children?.length) return; // leaf node, no drill
+  S.sbPath.push({ node: S.sbFocus, name: S.sbFocus ? S.sbFocus.name : sys.name });
+  S.sbFocus = child;
+  renderTab();
+}
+
+function sbDrillUp() {
+  if (!S.sbPath.length) return;
+  const prev = S.sbPath.pop();
+  S.sbFocus = prev.node;
+  renderTab();
+}
+
+function sbGoTo(idx) {
+  // Jump to a breadcrumb level
+  S.sbPath = S.sbPath.slice(0, idx);
+  S.sbFocus = idx === 0 ? null : S.sbPath[idx-1]?.node || null;
+  // Re-set focus to the node at position idx
+  if (idx > 0 && S.sbPath.length > 0) {
+    S.sbFocus = S.sbPath[S.sbPath.length - 1].node;
+    S.sbPath = S.sbPath.slice(0, -1);
+  } else {
+    S.sbFocus = null; S.sbPath = [];
+  }
+  renderTab();
+}
+
+function renderSunburst(container) {
+  const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+  if (!S.sbPath) { S.sbPath = []; S.sbFocus = null; }
+
+  const W = container.clientWidth || 800, H = container.clientHeight || 600;
+  const cx = W / 2, cy = (H - 40) / 2 + 40; // leave room for breadcrumb at top
+  const outerR = Math.min(W, H - 60) / 2 - 30;
+  const innerR = outerR * 0.28; // center circle radius
+
+  const focusNode = S.sbFocus;
+  const focusChildren = focusNode ? (focusNode.children || []) : sys.children;
+  const focusName = focusNode ? focusNode.name : sys.name;
+  const focusPartNo = focusNode ? (focusNode.partNo || '') : '';
+  const totalLeaves = focusChildren.reduce((s, c) => s + _sbCountLeaves(c), 0) || 1;
+  const hasParent = S.sbPath.length > 0;
+
+  const palette = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6','#14b8a6','#f97316','#06b6d4','#84cc16'];
+
+  // Build arc slices
+  function arcPath(r0, r1, a0, a1, cx, cy) {
+    if (a1 - a0 >= 2 * Math.PI - 0.001) return `M${cx},${cy-r1}A${r1},${r1},0,1,1,${cx-0.001},${cy-r1}ZM${cx},${cy-r0}A${r0},${r0},0,1,0,${cx-0.001},${cy-r0}Z`;
+    const cos0 = Math.cos(a0 - Math.PI/2), sin0 = Math.sin(a0 - Math.PI/2);
+    const cos1 = Math.cos(a1 - Math.PI/2), sin1 = Math.sin(a1 - Math.PI/2);
+    const lg = (a1 - a0) > Math.PI ? 1 : 0;
+    return `M${cx+r0*cos0},${cy+r0*sin0}L${cx+r1*cos0},${cy+r1*sin0}A${r1},${r1},0,${lg},1,${cx+r1*cos1},${cy+r1*sin1}L${cx+r0*cos1},${cy+r0*sin1}A${r0},${r0},0,${lg},0,${cx+r0*cos0},${cy+r0*sin0}Z`;
+  }
+
+  let slices = '', labels = '';
+  let angle = -Math.PI / 2; // start at top
+  const GAP = focusChildren.length > 1 ? 0.015 : 0;
+
+  focusChildren.forEach((child, i) => {
+    const leaves = _sbCountLeaves(child);
+    const sweep = (leaves / totalLeaves) * 2 * Math.PI - GAP;
+    const a0 = angle + GAP / 2, a1 = a0 + sweep;
+    const col = palette[i % palette.length];
+    const hasKids = child.children?.length > 0;
+    const midA = (a0 + a1) / 2;
+    const midR = (innerR + outerR) / 2;
+    const tx = cx + midR * Math.cos(midA - Math.PI/2);
+    const ty = cy + midR * Math.sin(midA - Math.PI/2);
+    const showLabel = sweep > 0.12;
+    const showSub = sweep > 0.22;
+    const childCount = child.children?.length || 0;
+
+    slices += `<path d="${arcPath(innerR, outerR, a0, a1, cx, cy)}"
+      fill="${col}" fill-opacity="0.82" stroke="#0a0a0d" stroke-width="2"
+      style="cursor:${hasKids?'pointer':'default'};transition:fill-opacity .15s"
+      onmouseenter="this.style.fillOpacity=1;_sbShowTip(event,'${child.name.replace(/'/g,'`')}','${child.partNo||''}',${child.qty||1},${leaves},${childCount})"
+      onmouseleave="this.style.fillOpacity=0.82;_sbHideTip()"
+      onclick="${hasKids?`sbDrillDown(${i})`:''}"/>`;
+
+    if (showLabel) {
+      const maxChars = Math.max(4, Math.floor(sweep * (innerR + outerR) / 14));
+      const lbl = truncate(child.name, maxChars);
+      labels += `<text x="${tx}" y="${ty - (showSub && childCount > 0 ? 7 : 0)}"
+        text-anchor="middle" dominant-baseline="middle"
+        fill="#fff" font-size="${sweep>0.35?12:10}" font-weight="600"
+        font-family="IBM Plex Sans,sans-serif" pointer-events="none"
+        style="text-shadow:0 1px 4px rgba(0,0,0,.9)">${lbl}</text>`;
+      if (showSub && childCount > 0) {
+        labels += `<text x="${tx}" y="${ty + 9}"
+          text-anchor="middle" dominant-baseline="middle"
+          fill="rgba(255,255,255,0.55)" font-size="9"
+          font-family="JetBrains Mono,monospace" pointer-events="none">${childCount} alt</text>`;
+      }
+    }
+    angle += sweep + GAP;
+  });
+
+  // Center circle
+  const centerClick = hasParent ? 'sbDrillUp()' : '';
+  const centerLabel = truncate(focusName, 14);
+  const centerSub = focusPartNo || (hasParent ? '← geri' : '');
+  slices += `<circle cx="${cx}" cy="${cy}" r="${innerR}"
+    fill="${hasParent?'#2a1a4a':'#1a1a2e'}" stroke="${hasParent?'#8b5cf6':'#3a3a50'}" stroke-width="2"
+    style="cursor:${hasParent?'pointer':'default'}"
+    onmouseenter="_sbShowCenter(event,'${focusName.replace(/'/g,'`')}')"
+    onmouseleave="_sbHideTip()"
+    onclick="${centerClick}"/>`;
+  labels += `<text x="${cx}" y="${cy-(centerSub?7:0)}" text-anchor="middle" dominant-baseline="middle"
+    fill="${hasParent?'#c4b5fd':'#818cf8'}" font-size="${innerR>60?13:11}" font-weight="700"
+    font-family="IBM Plex Sans,sans-serif" pointer-events="none">${centerLabel}</text>`;
+  if (centerSub) labels += `<text x="${cx}" y="${cy+12}" text-anchor="middle" dominant-baseline="middle"
+    fill="${hasParent?'#8b5cf6':'#555'}" font-size="9" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${centerSub}</text>`;
+
+  // Empty state
+  if (!focusChildren.length) {
+    slices += `<text x="${cx}" y="${cy+innerR+30}" text-anchor="middle" fill="var(--tx4)" font-size="11" font-family="IBM Plex Sans,sans-serif">Alt parça yok</text>`;
+  }
+
+  // Breadcrumb
+  const crumbItems = [{ name: sys.name, idx: 0 }, ...S.sbPath.map((p,i) => ({ name: p.name, idx: i+1 }))];
+  if (focusNode) crumbItems.push({ name: focusName, idx: -1 }); // current, not clickable
+  const breadcrumb = `<div style="position:absolute;top:0;left:0;right:0;height:36px;display:flex;align-items:center;padding:0 16px;gap:4px;background:var(--bg2);border-bottom:1px solid var(--brd);overflow:hidden">
+    ${crumbItems.map((c, i) => `
+      ${i>0?`<span style="color:var(--tx4);font-size:12px">›</span>`:''}
+      ${c.idx>=0
+        ? `<span style="font-size:11px;color:${i===crumbItems.length-2&&focusNode?'var(--ac2)':'var(--tx3)'};cursor:pointer;padding:2px 6px;border-radius:4px;hover:background:var(--sf)" onclick="sbGoTo(${i})" onmouseenter="this.style.color='var(--ac2)'" onmouseleave="this.style.color='${i===crumbItems.length-2&&focusNode?'var(--ac2)':'var(--tx3)'})'">${c.name}</span>`
+        : `<span style="font-size:11px;color:var(--tx);font-weight:600;padding:2px 6px">${c.name}</span>`
+      }`).join('')}
+    <span style="margin-left:auto;font-size:10px;color:var(--tx4)">${focusChildren.length} öğe &nbsp;|&nbsp; ${totalLeaves} toplam parça</span>
+  </div>`;
+
+  container.innerHTML = `<div style="position:relative;width:100%;height:100%;overflow:hidden">
+    ${breadcrumb}
+    <svg width="${W}" height="${H-36}" style="display:block;margin-top:36px">
+      ${slices}${labels}
+    </svg>
+    <div id="sbTip" style="display:none;position:absolute;background:var(--sf2);border:1px solid var(--brd2);border-radius:8px;padding:10px 14px;font-size:11px;pointer-events:none;z-index:20;max-width:240px;box-shadow:0 4px 20px rgba(0,0,0,.4)"></div>
+    ${!hasParent&&focusChildren.length>0?`<div style="position:absolute;bottom:14px;right:16px;font-size:10px;color:var(--tx4)">Alt parça olan dilimlere tıkla: içine gir</div>`:''}
+  </div>`;
+}
+
+window._sbShowTip = function(e, name, pn, qty, leaves, childCount) {
+  const tip = document.getElementById('sbTip'); if (!tip) return;
+  tip.innerHTML = `<div style="font-weight:700;color:var(--tx);margin-bottom:4px">${name}</div>
+    ${pn?`<div style="color:var(--ac2);font-family:monospace;font-size:10px;margin-bottom:4px">${pn}</div>`:''}
+    ${qty>1?`<div style="color:var(--warn)">×${qty} adet</div>`:''}
+    <div style="color:var(--tx3);font-size:10px">${leaves} toplam parça</div>
+    ${childCount>0?`<div style="color:var(--ac2);font-size:10px">${childCount} alt bileşen — tıkla: detay</div>`:
+      `<div style="color:var(--tx4);font-size:10px">Alt parça yok</div>`}`;
+  const rect = e.target.closest('div,svg')?.getBoundingClientRect() || {left:0,top:0};
+  tip.style.display='block';
+  tip.style.left = (e.clientX - rect.left + 14)+'px';
+  tip.style.top = (e.clientY - rect.top - 10)+'px';
+};
+window._sbShowCenter = function(e, name) {
+  const tip = document.getElementById('sbTip'); if (!tip) return;
+  const hasParent = S.sbPath?.length > 0;
+  if (!hasParent) { tip.style.display='none'; return; }
+  tip.innerHTML = `<div style="color:var(--ac2);font-size:11px">← Geri: <b>${name}</b></div>`;
+  const rect = e.target.closest('div,svg')?.getBoundingClientRect() || {left:0,top:0};
+  tip.style.display='block';
+  tip.style.left = (e.clientX - rect.left + 14)+'px';
+  tip.style.top = (e.clientY - rect.top - 10)+'px';
+};
+window._sbHideTip = function() { const t=document.getElementById('sbTip'); if(t) t.style.display='none'; };
+
+// ═══════ BOM TABLOSU (Virtual Scroll) ═══════
+S.bomTableSearch = ''; S.bomTableRows = []; S.bomTableFiltered = [];
+const BT_ROW_H = 34; // px per row
+const BT_OVERSCAN = 10; // extra rows above/below viewport
+const BT_COLS = ['depth','name','partNo','serialNo','qty','jiraKey','path'];
+const BT_DEPTH_COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6'];
+
+function renderBomTable(container) {
+  const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+
+  // Flatten once
+  const flat = [];
+  function walk(nodes, depth, path) {
+    for (const n of nodes) {
+      flat.push({ depth, name: n.name||'', partNo: n.partNo||'', serialNo: n.serialNo||'', qty: n.qty||1, jiraKey: n.jiraKey||'', path });
+      if (n.children?.length) walk(n.children, depth+1, path+(path?' › ':'')+n.name);
+    }
+  }
+  walk(sys.children, 0, '');
+  S.bomTableRows = flat;
+  S.bomTableSort = { col: 'depth', dir: 1 };
+  _btApplyFilter();
+
+  container.innerHTML = `<div style="height:100%;display:flex;flex-direction:column">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;flex-shrink:0">
+      <thead>
+        <tr id="btHead" style="background:var(--bg2)">
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;white-space:nowrap;width:60px" onclick="sortBomTable('depth')">Lvl ↕</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer" onclick="sortBomTable('name')">Parça Adı ↕</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:140px" onclick="sortBomTable('partNo')">Parça No ↕</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:120px" onclick="sortBomTable('serialNo')">Seri No ↕</th>
+          <th style="padding:8px 12px;text-align:right;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:60px" onclick="sortBomTable('qty')">Adet ↕</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:100px" onclick="sortBomTable('jiraKey')">Jira ↕</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);width:180px">Yol</th>
+        </tr>
+      </thead>
+    </table>
+    <div id="btScroll" style="flex:1;overflow-y:auto;position:relative" onscroll="_btOnScroll()">
+      <div id="btSpacer" style="position:relative;width:100%">
+        <table id="btTable" style="width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;position:absolute;top:0;left:0;right:0">
+          <tbody id="btBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  _btRenderViewport();
+  updateBomTableInfo();
+}
+
+function _btApplyFilter() {
+  const q = (S.bomTableSearch||'').toLowerCase();
+  let rows = q ? S.bomTableRows.filter(r =>
+    r.name.toLowerCase().includes(q) || r.partNo.toLowerCase().includes(q) ||
+    r.serialNo.toLowerCase().includes(q) || r.jiraKey.toLowerCase().includes(q) || r.path.toLowerCase().includes(q)
+  ) : [...S.bomTableRows];
+
+  if (S.bomTableSort) {
+    const {col, dir} = S.bomTableSort;
+    rows.sort((a,b) => { const av=a[col], bv=b[col]; return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv)))*dir; });
+  }
+  S.bomTableFiltered = rows;
+}
+
+function _btRenderViewport() {
+  const scroller = document.getElementById('btScroll');
+  const spacer = document.getElementById('btSpacer');
+  const tbody = document.getElementById('btBody');
+  const table = document.getElementById('btTable');
+  if (!scroller || !spacer || !tbody) return;
+
+  const rows = S.bomTableFiltered;
+  const total = rows.length;
+  const totalH = total * BT_ROW_H;
+  spacer.style.height = totalH + 'px';
+
+  const scrollTop = scroller.scrollTop;
+  const viewH = scroller.clientHeight || 600;
+  const firstVisible = Math.max(0, Math.floor(scrollTop / BT_ROW_H) - BT_OVERSCAN);
+  const lastVisible = Math.min(total - 1, Math.ceil((scrollTop + viewH) / BT_ROW_H) + BT_OVERSCAN);
+
+  table.style.top = (firstVisible * BT_ROW_H) + 'px';
+
+  let html = '';
+  for (let i = firstVisible; i <= lastVisible; i++) {
+    const r = rows[i];
+    const col = BT_DEPTH_COLORS[r.depth % BT_DEPTH_COLORS.length];
+    const bg = i%2===0 ? 'transparent' : 'var(--sf)';
+    html += `<tr style="height:${BT_ROW_H}px;background:${bg}" onmouseenter="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${bg}'">
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:4px;vertical-align:middle"></span>${r.depth}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-weight:${r.depth===0?'600':'400'};padding-left:${12+r.depth*12}px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--ac2);white-space:nowrap">${r.partNo||'—'}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--tx3);white-space:nowrap">${r.serialNo||'—'}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);text-align:right;color:var(--warn);font-family:'JetBrains Mono',monospace">×${r.qty}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--ok);white-space:nowrap">${r.jiraKey||'—'}</td>
+      <td style="padding:0 12px;border-bottom:1px solid var(--brd);color:var(--tx4);font-size:9px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.path||'—'}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+function _btOnScroll() { _btRenderViewport(); }
+
+let _bomTableFilterTimer = null;
+function bomTableFilter(q) {
+  S.bomTableSearch = q;
+  if (_bomTableFilterTimer) clearTimeout(_bomTableFilterTimer);
+  _bomTableFilterTimer = setTimeout(() => {
+    _btApplyFilter();
+    const scroller = document.getElementById('btScroll');
+    if (scroller) scroller.scrollTop = 0;
+    _btRenderViewport();
+    updateBomTableInfo();
+  }, 200);
+}
+function sortBomTable(col) {
+  if (!S.bomTableSort) S.bomTableSort = {col, dir:1};
+  else if (S.bomTableSort.col===col) S.bomTableSort.dir *= -1;
+  else S.bomTableSort = {col, dir:1};
+  _btApplyFilter();
+  const scroller = document.getElementById('btScroll');
+  if (scroller) scroller.scrollTop = 0;
+  _btRenderViewport();
+  updateBomTableInfo();
+}
+function updateBomTableInfo() {
+  const el = document.getElementById('bomTableInfo'); if (!el) return;
+  const total = S.bomTableRows?.length||0, shown = S.bomTableFiltered?.length??total;
+  el.textContent = shown===total ? `${total} parça` : `${shown}/${total} parça`;
+}
+function exportBomTableCSV() {
+  const rows = S.bomTableFiltered||S.bomTableRows||[]; if (!rows.length) return;
+  const header = ['Seviye','Parça Adı','Parça No','Seri No','Adet','Jira Key','Yol'];
+  const lines = [header.join(','), ...rows.map(r=>[r.depth,`"${r.name}"`,r.partNo,r.serialNo,r.qty,r.jiraKey,`"${r.path}"`].join(','))];
+  const blob = new Blob(['\uFEFF'+lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bom-export.csv'; a.click();
+}
+
+// ═══════ ALT SİSTEM KARŞILAŞTIRMA MATRİSİ ═══════
+function renderDSM(container) {
+  const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+  if (!sys.children?.length) {
+    container.innerHTML='<div class="empty-state"><div class="empty-icon">⊞</div><div class="empty-title">Alt sistem yok</div></div>'; return;
+  }
+
+  function flatSub(nodes, depth) {
+    let arr = [];
+    for (const n of nodes) {
+      arr.push({...n, _depth: depth});
+      if (n.children?.length) arr = arr.concat(flatSub(n.children, depth+1));
+    }
+    return arr;
+  }
+  function maxDepth(nodes, d) {
+    let m = d;
+    for (const n of nodes) if (n.children?.length) m = Math.max(m, maxDepth(n.children, d+1));
+    return m;
+  }
+
+  const METRICS = [
+    { key:'total',    label:'Toplam Parça',      desc:'Tüm alt parçalar dahil',         fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
+    { key:'unique',   label:'Benzersiz Parça No', desc:'Farklı parça numarası sayısı',   fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
+    { key:'depth',    label:'Max Derinlik',       desc:'Ağaç derinliği (seviye)',        fmt:v=>`${v} lvl`,    color:(v,mm)=>_dsmColor(v,'warn',3,5) },
+    { key:'jira',     label:'Jira Kapsama',       desc:'Jira key atanmış parça %',       fmt:v=>`%${v}`,       color:(v,mm)=>_dsmColorPct(v) },
+    { key:'nopn',     label:'Parça No Eksik',     desc:'Parça numarası boş olan sayısı', fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'danger',0,5) },
+    { key:'maxqty',   label:'Max Adet',           desc:'En yüksek adetli tek parça',    fmt:v=>`×${v}`,       color:(v,mm)=>_dsmColor(v,'neutral') },
+    { key:'totalqty', label:'Toplam Adet',        desc:'Tüm parçaların adet toplamı',   fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
+    { key:'nojira',   label:'Jira Eksik',         desc:'Jira key olmayan parça sayısı', fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'danger',0,10) },
+  ];
+
+  const palette = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6','#14b8a6','#f97316','#06b6d4','#84cc16'];
+
+  const rows = sys.children.map((c, i) => {
+    const all = flatSub(c.children||[], 1);
+    const total = all.length;
+    const uniquePNs = new Set(all.map(n=>n.partNo).filter(Boolean)).size;
+    const depth = c.children?.length ? maxDepth(c.children, 1) : 0;
+    const withJira = all.filter(n=>n.jiraKey).length;
+    const jiraPct = total ? Math.round(withJira/total*100) : 100;
+    const noPn = all.filter(n=>!n.partNo).length;
+    const maxQty = all.reduce((m,n)=>Math.max(m,n.qty||1),1);
+    const totalQty = all.reduce((s,n)=>s+(n.qty||1),0);
+    const noJira = total - withJira;
+    return { name:c.name, partNo:c.partNo||'', color:palette[i%palette.length], total, unique:uniquePNs, depth, jira:jiraPct, nopn:noPn, maxqty:maxQty, totalqty:totalQty, nojira:noJira };
+  });
+
+  const minMax = {};
+  METRICS.forEach(m => {
+    const vals = rows.map(r=>r[m.key]);
+    minMax[m.key] = { min:Math.min(...vals), max:Math.max(...vals) };
+  });
+
+  let html = `<div style="overflow:auto;height:100%;padding:16px">
+    <div style="font-size:10px;color:var(--tx3);margin-bottom:14px;font-weight:600;text-transform:uppercase;letter-spacing:1px">Alt Sistem Metrik Karşılaştırması</div>
+    <table style="border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;width:100%">
+      <thead><tr>
+        <th style="padding:8px 16px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:2px solid var(--brd2);min-width:160px">Alt Sistem</th>`;
+
+  METRICS.forEach(m => {
+    html += `<th style="padding:8px 10px;text-align:center;color:var(--tx3);font-weight:600;border-bottom:2px solid var(--brd2);min-width:100px" title="${m.desc}">${m.label}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach((r, i) => {
+    html += `<tr onmouseenter="this.style.background='var(--sf)'" onmouseleave="this.style.background='transparent'">
+      <td style="padding:10px 16px;border-bottom:1px solid var(--brd)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${r.color};flex-shrink:0"></span>
+          <span style="color:var(--tx);font-weight:600">${r.name}</span>
+        </div>
+        ${r.partNo?`<div style="font-size:9px;color:var(--tx4);font-family:monospace;margin-left:18px">${r.partNo}</div>`:''}
+      </td>`;
+
+    METRICS.forEach(m => {
+      const val = r[m.key];
+      const textColor = m.color(val, minMax[m.key]);
+      const barPct = minMax[m.key].max===minMax[m.key].min ? 50 : Math.round((val-minMax[m.key].min)/(minMax[m.key].max-minMax[m.key].min)*100);
+      html += `<td style="padding:8px 10px;border-bottom:1px solid var(--brd);text-align:center;vertical-align:middle" title="${m.desc}: ${m.fmt(val)}">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+          <span style="font-weight:700;font-size:13px;color:${textColor}">${m.fmt(val)}</span>
+          <div style="width:64px;height:4px;background:var(--sf3);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${barPct}%;background:${textColor};border-radius:2px"></div>
+          </div>
+        </div>
+      </td>`;
+    });
+    html += '</tr>';
+  });
+
+  // Toplam satırı
+  const T = { total:rows.reduce((s,r)=>s+r.total,0), unique:'—', depth:Math.max(...rows.map(r=>r.depth)),
+    jira:rows.length?Math.round(rows.reduce((s,r)=>s+r.jira,0)/rows.length):0,
+    nopn:rows.reduce((s,r)=>s+r.nopn,0), maxqty:Math.max(...rows.map(r=>r.maxqty)),
+    totalqty:rows.reduce((s,r)=>s+r.totalqty,0), nojira:rows.reduce((s,r)=>s+r.nojira,0) };
+  html += `<tr style="background:var(--sf2)"><td style="padding:10px 16px;color:var(--tx2);font-weight:700;border-top:2px solid var(--brd2)">TOPLAM / ORTALAMA</td>`;
+  METRICS.forEach(m => {
+    const val = T[m.key];
+    html += `<td style="padding:8px 10px;text-align:center;color:var(--tx2);font-weight:600;border-top:2px solid var(--brd2)">${val==='—'?'—':m.fmt(val)}</td>`;
+  });
+  html += `</tr></tbody></table>
+    <div style="margin-top:14px;display:flex;gap:20px;flex-wrap:wrap;font-size:10px;color:var(--tx4)">
+      <span><span style="color:var(--ok)">■</span> İyi</span>
+      <span><span style="color:var(--warn)">■</span> Dikkat</span>
+      <span><span style="color:var(--err)">■</span> Aksiyon gerekli</span>
+      <span><span style="color:var(--tx3)">■</span> Bilgi</span>
+      <span style="margin-left:auto;font-style:italic">Sütun başlıklarının üzerine gelin: açıklama</span>
+    </div>
+  </div>`;
+  container.innerHTML = html;
+}
+function _dsmColor(v, type, goodMax, warnMax) {
+  if (type==='neutral') return 'var(--tx2)';
+  if (type==='warn') return v<=goodMax?'var(--ok)':v<=warnMax?'var(--warn)':'var(--err)';
+  if (type==='danger') return v===0?'var(--ok)':v<=warnMax?'var(--warn)':'var(--err)';
+  return 'var(--tx2)';
+}
+function _dsmColorPct(v) { return v>=90?'var(--ok)':v>=50?'var(--warn)':'var(--err)'; }
+
 // ═══════ DASHBOARD ═══════
 function renderDashboard(container){
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
@@ -1996,8 +2476,80 @@ function renderDashboard(container){
       ${noJira.length===0?'<div style="color:var(--ok);font-size:11px;padding:8px">Tüm parçalarda Jira key mevcut</div>':
       noJira.slice(0,10).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name}</span><span class="cmp-pn">${n.partNo||'—'}</span></div>`).join('')+(noJira.length>10?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...ve ${noJira.length-10} parça daha</div>`:'')}
     </div>
+
+    ${_dashMatchCard(sys, flat)}
   </div>`;
 }
+
+function _dashMatchCard(sys, flatA) {
+  const otherSystems = S.systems.filter(s=>s.id!==S.selSys);
+  if (!otherSystems.length) return `<div class="dash-card" style="grid-column:span 2">
+    <div class="dash-card-title">BOM Eşleşme Analizi</div>
+    <div style="color:var(--tx4);font-size:11px;padding:8px 0">Karşılaştırmak için en az 2 sistem gerekli.</div>
+  </div>`;
+
+  const opts = otherSystems.map(s=>`<option value="${s.id}" ${s.id===S.dashCmpSys?'selected':''}>${s.name}</option>`).join('');
+  const sel = `<select class="field-input" style="width:100%;font-size:11px;padding:5px 8px;margin-bottom:10px" onchange="dashSetCmp(this.value)">
+    <option value="">— Karşılaştırılacak sistemi seçin —</option>${opts}
+  </select>`;
+
+  const cmpSys = S.dashCmpSys ? S.systems.find(s=>s.id===S.dashCmpSys) : null;
+  if (!cmpSys) return `<div class="dash-card" style="grid-column:span 2">
+    <div class="dash-card-title">BOM Eşleşme Analizi</div>${sel}
+  </div>`;
+
+  const flatB = flattenBOM(cmpSys.children,'');
+  const pnsA = new Set(flatA.map(n=>n.partNo).filter(Boolean));
+  const pnsB = new Set(flatB.map(n=>n.partNo).filter(Boolean));
+  const common = [...pnsA].filter(p=>pnsB.has(p));
+  const onlyA = [...pnsA].filter(p=>!pnsB.has(p));
+  const onlyB = [...pnsB].filter(p=>!pnsA.has(p));
+  const pct = Math.max(pnsA.size,pnsB.size) ? Math.round(common.length/Math.max(pnsA.size,pnsB.size)*100) : 0;
+  const namesA = new Set(flatA.map(n=>n.name.toLowerCase().trim()).filter(Boolean));
+  const namesB = new Set(flatB.map(n=>n.name.toLowerCase().trim()).filter(Boolean));
+  const commonNames = [...namesA].filter(n=>namesB.has(n));
+  const namePct = Math.max(namesA.size,namesB.size) ? Math.round(commonNames.length/Math.max(namesA.size,namesB.size)*100) : 0;
+  const pctColor = pct>=80?'var(--ok)':pct>=50?'var(--warn)':'var(--err)';
+
+  return `<div class="dash-card" style="grid-column:span 2">
+    <div class="dash-card-title">BOM Eşleşme Analizi — <span style="color:var(--ac2)">${sys.name}</span> ↔ <span style="color:var(--pink)">${cmpSys.name}</span></div>
+    ${sel}
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="flex:1;text-align:center;background:var(--sf2);border-radius:8px;padding:12px 6px">
+        <div style="font-size:26px;font-weight:700;color:${pctColor}">${pct}%</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:3px">Parça No Eşleşme</div>
+      </div>
+      <div style="flex:1;text-align:center;background:var(--sf2);border-radius:8px;padding:12px 6px">
+        <div style="font-size:26px;font-weight:700;color:var(--ok)">${common.length}</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:3px">Ortak Parça No</div>
+      </div>
+      <div style="flex:1;text-align:center;background:var(--sf2);border-radius:8px;padding:12px 6px">
+        <div style="font-size:26px;font-weight:700;color:var(--warn)">${namePct}%</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:3px">Ad Benzerliği</div>
+      </div>
+      <div style="flex:1;text-align:center;background:var(--sf2);border-radius:8px;padding:12px 6px">
+        <div style="font-size:26px;font-weight:700;color:var(--err)">${onlyA.length+onlyB.length}</div>
+        <div style="font-size:9px;color:var(--tx3);margin-top:3px">Farklı Parça</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px">
+      <div style="background:var(--sf2);border-radius:6px;padding:10px;border-left:3px solid var(--ac2)">
+        <div style="color:var(--ac2);margin-bottom:6px;font-weight:600">Sadece "${sys.name}"de (${onlyA.length})</div>
+        ${onlyA.length===0?`<div style="color:var(--ok)">✓ Tümü eşleşiyor</div>`:
+          onlyA.slice(0,6).map(p=>`<div style="font-family:monospace;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px">${p}</div>`).join('')+
+          (onlyA.length>6?`<div style="color:var(--tx4);margin-top:4px">...+${onlyA.length-6} daha</div>`:'')}
+      </div>
+      <div style="background:var(--sf2);border-radius:6px;padding:10px;border-left:3px solid var(--pink)">
+        <div style="color:var(--pink);margin-bottom:6px;font-weight:600">Sadece "${cmpSys.name}"de (${onlyB.length})</div>
+        ${onlyB.length===0?`<div style="color:var(--ok)">✓ Tümü eşleşiyor</div>`:
+          onlyB.slice(0,6).map(p=>`<div style="font-family:monospace;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px">${p}</div>`).join('')+
+          (onlyB.length>6?`<div style="color:var(--tx4);margin-top:4px">...+${onlyB.length-6} daha</div>`:'')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function dashSetCmp(id) { S.dashCmpSys = id||null; renderTab(); }
 
 // ═══════ AUTO-BACKUP ═══════
 let _backupTimer=null;
