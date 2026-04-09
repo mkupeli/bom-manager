@@ -234,6 +234,8 @@ select.field-input{cursor:pointer}
 .tn-qadd:hover{background:rgba(99,102,241,.15);color:var(--ac2)}
 /* Lib drag-over on tree nodes */
 .tn.lib-drop-target{background:rgba(99,102,241,.15)!important;outline:1px dashed var(--ac)!important}
+/* Org chart drag ghost */
+#orgDragGhost{position:fixed;pointer-events:none;z-index:9999;background:#1e1b4b;border:2px solid #818cf8;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:600;color:#e5e3df;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6);display:none;transform:translate(-50%,-50%)}
 /* Empty BOM drop zone */
 .bom-empty-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;padding:40px}
 .bom-empty-drop-zone{border:2px dashed var(--brd2);border-radius:14px;padding:32px 48px;text-align:center;font-size:12px;color:var(--tx3);transition:all .15s;cursor:default;background:transparent}
@@ -1018,13 +1020,13 @@ function renderOrgChart(container) {
   for (const p of positions) {
     const isR = p.node._isRoot;
     if (p.collapsed) {
-      // Clickable collapsed node
-      inner += `<g data-nid="${p.nid}" style="cursor:pointer" onclick="orgToggleNode('${p.nid}')">
-        <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#151520" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85"/>
-        <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="transparent"/>
-        <text x="${p.x+p.w/2}" y="${p.y+18}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>
-        <text x="${p.x+p.w/2}" y="${p.y+34}" text-anchor="middle" fill="#6366f1" font-size="11" font-weight="700" font-family="IBM Plex Sans,sans-serif">▶ ${p.descCount} parça</text>
-        <text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="#5555aa" font-size="9" font-family="IBM Plex Sans,sans-serif">tıkla: aç</text>
+      // Collapsed node — draggable
+      inner += `<g id="orgn-${p.nid}" class="org-node org-node-draggable" data-nid="${p.nid}" style="cursor:grab">
+        <rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="#151520" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.85"/>
+        <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="10" fill="transparent" data-nid="${p.nid}"/>
+        <text x="${p.x+p.w/2}" y="${p.y+18}" text-anchor="middle" fill="#9090c0" font-size="11" font-weight="600" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${truncate(p.node.name,22)}</text>
+        <text x="${p.x+p.w/2}" y="${p.y+34}" text-anchor="middle" fill="#6366f1" font-size="11" font-weight="700" font-family="IBM Plex Sans,sans-serif" pointer-events="none">▶ ${p.descCount} parça</text>
+        <text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="#5555aa" font-size="9" font-family="IBM Plex Sans,sans-serif" pointer-events="none">tıkla: aç / sürükle: taşı</text>
       </g>`;
     } else {
       const d = nidDepth[p.nid] || 0;
@@ -1034,22 +1036,22 @@ function renderOrgChart(container) {
       const tc = '#e5e3df';
       const sc = dc.stroke;
       const sc2 = dc.stroke + '99';
-      const clickAttr = p.canCollapse ? `onclick="orgToggleNode('${p.nid}')"` : '';
       const descCount = _orgCountDesc(p.node.children);
       const tooltip = `${p.node.name}${p.node.partNo?' | '+p.node.partNo:''}${descCount?' | '+descCount+' alt parça':''}${p.node.qty>1?' | ×'+p.node.qty:''}`;
-      inner += `<g class="org-node" data-nid="${p.nid}" style="cursor:${p.canCollapse?'pointer':'default'}" ${clickAttr}
+      const isDraggable = !isR;
+      inner += `<g id="orgn-${p.nid}" class="org-node${isDraggable?' org-node-draggable':''}" data-nid="${p.nid}" style="cursor:${isDraggable?'grab':'default'}"
         onmouseenter="orgHoverNode('${p.nid}',true,'${tooltip.replace(/'/g,'&#39;')}')"
         onmouseleave="orgHoverNode('${p.nid}',false,'')">`;
       inner += `<rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif">${truncate(p.node.name,22)}</text>`;
-      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+35}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace">${p.node.partNo}</text>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="${sc2}" font-size="9" font-family="JetBrains Mono,monospace">${p.node.serialNo||''}</text>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${truncate(p.node.name,22)}</text>`;
+      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+35}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.partNo}</text>`;
+      inner += `<text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="${sc2}" font-size="9" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.serialNo||''}</text>`;
       if (p.node.qty > 1) {
-        inner += `<rect x="${p.x+p.w-30}" y="${p.y-8}" width="34" height="16" rx="8" fill="#f59e0b" opacity="0.9"/>`;
-        inner += `<text x="${p.x+p.w-13}" y="${p.y+4}" text-anchor="middle" fill="#000" font-size="9" font-weight="700" font-family="JetBrains Mono,monospace">×${p.node.qty}</text>`;
+        inner += `<rect x="${p.x+p.w-30}" y="${p.y-8}" width="34" height="16" rx="8" fill="#f59e0b" opacity="0.9" pointer-events="none"/>`;
+        inner += `<text x="${p.x+p.w-13}" y="${p.y+4}" text-anchor="middle" fill="#000" font-size="9" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty}</text>`;
       }
       if (p.canCollapse) {
-        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-3}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif">kapat</text>`;
+        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-3}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif" pointer-events="none">kapat</text>`;
       }
       inner += `</g>`;
     }
@@ -1184,22 +1186,217 @@ function renderOrgChart(container) {
     v.scale = newScale;
     applyOrgTransform();
   }, { passive: false });
+
+  // Smart mousedown: node drag vs canvas pan
   svg.addEventListener('mousedown', function(e) {
     if (e.button !== 0) return;
-    const v = window._orgViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
-    svg.style.cursor = 'grabbing';
+    const nid = _orgNidAt(e.clientX, e.clientY);
+    if (nid && nid !== 'org-root') {
+      // Start as drag candidate — actual drag activates after threshold
+      S.orgDragCandidate = {nid, startX: e.clientX, startY: e.clientY};
+      e.stopPropagation();
+    } else {
+      const v = window._orgViz; v.dragging = true; v.lastX = e.clientX; v.lastY = e.clientY;
+      svg.style.cursor = 'grabbing';
+    }
   });
-  window.addEventListener('mousemove', function(e) {
-    const v = window._orgViz; if (!v || !v.dragging) return;
-    v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
-    v.lastX = e.clientX; v.lastY = e.clientY;
-    applyOrgTransform();
+
+  // Library drag onto org chart
+  svg.addEventListener('dragover', function(e) {
+    if (S.libDragId) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
   });
-  window.addEventListener('mouseup', function() {
-    const v = window._orgViz; if (v) v.dragging = false;
-    const svg = document.getElementById('orgSvg'); if (svg) svg.style.cursor = 'grab';
+  svg.addEventListener('drop', function(e) {
+    e.preventDefault();
+    const dragKey = S.libDragId || e.dataTransfer.getData('text/plain');
+    if (!dragKey || (!dragKey.startsWith('lib:') && !dragKey.startsWith('bom:'))) return;
+    S.libDragId = null;
+    const nid = _orgNidAt(e.clientX, e.clientY);
+    _orgLibDrop(dragKey, nid);
   });
+
+  // Install global handlers only once
+  if (!window._orgHandlersInstalled) {
+    window._orgHandlersInstalled = true;
+    window.addEventListener('mousemove', function(e) {
+      // Canvas pan
+      const v = window._orgViz;
+      if (v && v.dragging) {
+        v.tx += e.clientX - v.lastX; v.ty += e.clientY - v.lastY;
+        v.lastX = e.clientX; v.lastY = e.clientY;
+        applyOrgTransform(); return;
+      }
+      // Node drag
+      if (S.orgDragCandidate) {
+        const dx = e.clientX - S.orgDragCandidate.startX;
+        const dy = e.clientY - S.orgDragCandidate.startY;
+        if (!S.orgDragId && Math.sqrt(dx*dx+dy*dy) > 6) {
+          S.orgDragId = S.orgDragCandidate.nid;
+          _orgNodeDragStart(S.orgDragId);
+        }
+        if (S.orgDragId) _orgNodeDragMove(e);
+      }
+    });
+    window.addEventListener('mouseup', function(e) {
+      const v = window._orgViz; if (v) v.dragging = false;
+      const svg = document.getElementById('orgSvg'); if (svg) svg.style.cursor = 'grab';
+      if (S.orgDragId) _orgNodeDragEnd(e);
+      else if (S.orgDragCandidate) {
+        // It was a click, not a drag — handle toggle
+        const nid = S.orgDragCandidate.nid;
+        S.orgDragCandidate = null;
+        const pos = (window._orgPositions||[]).find(p=>p.nid===nid);
+        if (pos && (pos.collapsed || pos.canCollapse)) orgToggleNode(nid);
+      }
+      S.orgDragCandidate = null;
+    });
+  }
   svg.style.cursor = 'grab';
+}
+
+// ═══════ ORG CHART DRAG & DROP ═══════
+
+// Find data-nid at screen coords (walks up from elementFromPoint)
+function _orgNidAt(cx, cy) {
+  const ghost = document.getElementById('orgDragGhost');
+  if (ghost) ghost.style.display = 'none';
+  let el = document.elementFromPoint(cx, cy);
+  if (ghost) ghost.style.display = '';
+  while (el && el.tagName !== 'svg') {
+    if (el.dataset && el.dataset.nid) return el.dataset.nid;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+// Get/create ghost div
+function _orgGhost() {
+  let g = document.getElementById('orgDragGhost');
+  if (!g) { g = document.createElement('div'); g.id = 'orgDragGhost'; document.body.appendChild(g); }
+  return g;
+}
+
+function _orgNodeDragStart(nid) {
+  const pos = (window._orgPositions||[]).find(p=>p.nid===nid); if(!pos) return;
+  const ghost = _orgGhost();
+  ghost.textContent = '⠿ ' + (pos.node.name||'');
+  ghost.style.display = 'block';
+  // Dim the dragged node
+  const el = document.getElementById('orgn-'+nid);
+  if (el) el.style.opacity = '0.4';
+  S.orgDropTarget = null;
+}
+
+function _orgNodeDragMove(e) {
+  const ghost = _orgGhost();
+  ghost.style.left = e.clientX + 'px';
+  ghost.style.top = (e.clientY - 28) + 'px';
+
+  // Find node under cursor (ignoring ghost)
+  const nid = _orgNidAt(e.clientX, e.clientY);
+  const validTarget = nid && nid !== S.orgDragId && nid !== 'org-root' && !_orgIsDescendant(nid, S.orgDragId);
+
+  if (nid !== S.orgDropTarget) {
+    // Remove old highlight
+    if (S.orgDropTarget) _orgSetDropHighlight(S.orgDropTarget, false);
+    S.orgDropTarget = validTarget ? nid : null;
+    if (S.orgDropTarget) _orgSetDropHighlight(S.orgDropTarget, true);
+  }
+  // Change ghost color based on validity
+  ghost.style.borderColor = validTarget ? '#34d399' : '#6366f1';
+  ghost.style.background = validTarget ? '#0d2b1e' : '#1e1b4b';
+}
+
+function _orgSetDropHighlight(nid, on) {
+  const rect = document.querySelector(`#orgn-${nid} .org-node-rect`);
+  if (!rect) return;
+  if (on) {
+    rect.setAttribute('data-orig-stroke', rect.getAttribute('stroke'));
+    rect.setAttribute('stroke', '#34d399');
+    rect.setAttribute('stroke-width', '3');
+    rect.style.filter = 'url(#glowHover)';
+  } else {
+    const orig = rect.getAttribute('data-orig-stroke');
+    if (orig) rect.setAttribute('stroke', orig);
+    rect.setAttribute('stroke-width', '1.5');
+    rect.style.filter = '';
+  }
+}
+
+function _orgIsDescendant(possibleDescNid, ancestorNid) {
+  // Check if possibleDescNid is a descendant of ancestorNid using _orgParentOf
+  let cur = possibleDescNid;
+  while (cur) {
+    if (cur === ancestorNid) return true;
+    cur = S._orgParentOf?.[cur];
+  }
+  return false;
+}
+
+async function _orgNodeDragEnd(e) {
+  const dragId = S.orgDragId;
+  const dropTarget = S.orgDropTarget;
+  S.orgDragId = null; S.orgDragCandidate = null; S.orgDropTarget = null;
+
+  // Hide ghost, restore dragged node opacity
+  const ghost = document.getElementById('orgDragGhost');
+  if (ghost) ghost.style.display = 'none';
+  const dragEl = document.getElementById('orgn-'+dragId);
+  if (dragEl) dragEl.style.opacity = '';
+
+  // Remove drop highlight
+  if (dropTarget) _orgSetDropHighlight(dropTarget, false);
+
+  if (!dropTarget || !dragId) return;
+
+  // Find real node IDs (org nids map back to actual tree node ids via _orgPositions)
+  const dragPos = (window._orgPositions||[]).find(p=>p.nid===dragId);
+  const dropPos = (window._orgPositions||[]).find(p=>p.nid===dropTarget);
+  if (!dragPos || !dropPos) return;
+
+  const realDragId = dragPos.node.id;
+  const realDropId = dropPos.node.id;
+  if (!realDragId || !realDropId) return;
+
+  const sys = S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const dragNode = find(sys.children, realDragId); if(!dragNode) return;
+  // Prevent dropping into own descendant
+  const isChild = (node, pid) => { if(node.id===pid)return true; if(node.children)for(const c of node.children){if(isChild(c,pid))return true}; return false; };
+  if (isChild(dragNode, realDropId)) { toast("Kendi altına taşınamaz","error"); return; }
+
+  // Remove from old position, add to new parent
+  rm(sys.children, realDragId);
+  const targetNode = find(sys.children, realDropId) || (sys.id === realDropId ? sys : null);
+  if (!targetNode) return;
+  if (!targetNode.children) targetNode.children = [];
+  targetNode.children.push(dragNode);
+
+  addRev("Org'da taşındı", `${dragNode.name} → ${targetNode.name}`);
+  await persist(); renderMain(); toast(`"${dragNode.name}" → "${targetNode.name}" altına taşındı`);
+}
+
+// Library / BOM-search drop onto org chart node
+async function _orgLibDrop(dragKey, targetNid) {
+  const sys = S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  // Find target node
+  const pos = (window._orgPositions||[]).find(p=>p.nid===targetNid);
+  const realTargetId = pos?.node?.id;
+  const target = realTargetId ? (find(sys.children, realTargetId)||(sys.id===realTargetId?sys:null)) : sys;
+  if (!target) { toast("Hedef bulunamadı","error"); return; }
+
+  let srcName, srcPartNo, srcQty;
+  if (dragKey.startsWith('lib:')) {
+    const item = S.library.find(l=>l.id===dragKey.slice(4)); if(!item) return;
+    srcName=item.name; srcPartNo=item.partNo||''; srcQty=item.qty||1;
+  } else if (dragKey.startsWith('bom:')) {
+    const hit = (window._libBomHits||[]).find(h=>h.id===dragKey.slice(4));
+    if (!hit) { let f=null; for(const s of S.systems){f=find(s.children,dragKey.slice(4));if(f)break} if(!f)return; srcName=f.name;srcPartNo=f.partNo||'';srcQty=f.qty||1; }
+    else { srcName=hit.name; srcPartNo=hit.partNo; srcQty=hit.qty||1; }
+  } else return;
+
+  if (!target.children) target.children = [];
+  target.children.push({id:gid(),name:srcName,partNo:srcPartNo,serialNo:`SN-${Date.now().toString(36).toUpperCase()}`,qty:srcQty,jiraKey:'',children:[]});
+  addRev("Org'a kütüphaneden eklendi", `${srcName} → ${target.name}`);
+  await persist(); renderMain(); toast(`"${srcName}" org chart'a eklendi`);
 }
 
 function applyOrgTransform() {
