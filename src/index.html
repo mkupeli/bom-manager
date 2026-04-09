@@ -1258,10 +1258,14 @@ function renderOrgChart(container) {
 
 // Find data-nid at screen coords (walks up from elementFromPoint)
 function _orgNidAt(cx, cy) {
+  // Geçici olarak ghost ve preview edge'i gizle
   const ghost = document.getElementById('orgDragGhost');
+  const pe = document.getElementById('org-preview-edge');
   if (ghost) ghost.style.display = 'none';
+  if (pe) pe.style.display = 'none';
   let el = document.elementFromPoint(cx, cy);
   if (ghost) ghost.style.display = '';
+  if (pe) pe.style.display = '';
   while (el && el.tagName !== 'svg') {
     if (el.dataset && el.dataset.nid) return el.dataset.nid;
     el = el.parentElement;
@@ -1317,8 +1321,9 @@ function _orgNodeDragMove(e) {
     S.orgDropTarget = validTarget ? nid : null;
     S.orgDropMode = mode;
     if (S.orgDropTarget) _orgSetDropHighlight(S.orgDropTarget, true, mode);
-    _orgUpdatePreviewEdge(validTarget ? nid : null, mode);
   }
+  // Preview edge her mousemove'da güncelle (modeChanged bağımsız)
+  _orgUpdatePreviewEdge(validTarget ? nid : null, mode, e);
 
   // Ghost label
   const dragPos = (window._orgPositions||[]).find(p=>p.nid===S.orgDragId);
@@ -1342,8 +1347,8 @@ function _orgNodeDragMove(e) {
   }
 }
 
-// Preview edge: kesik çizgiyle sürüklenen node'un nereye bağlanacağını göster
-function _orgUpdatePreviewEdge(targetNid, mode) {
+// Preview edge: sürüklenen node'dan hedef node'a kesik çizgili animasyonlu ok
+function _orgUpdatePreviewEdge(targetNid, mode, mouseEvent) {
   const old = document.getElementById('org-preview-edge');
   if (old) old.remove();
   if (!targetNid || !S.orgDragId) return;
@@ -1353,31 +1358,53 @@ function _orgUpdatePreviewEdge(targetNid, mode) {
   if (!dragPos || !targetPos) return;
 
   const orgG = document.getElementById('orgG'); if (!orgG) return;
-  const dCx = dragPos.x + dragPos.w/2, dCy = dragPos.y + dragPos.h/2;
+  const svg = document.getElementById('orgSvg'); if (!svg) return;
 
-  let x1,y1,x2,y2;
+  // Koordinatlar SVG layout space'inde (orgG transform'u içinde)
+  let x1, y1, x2, y2;
   if (mode === 'into') {
-    // Drag node → target node center (child link)
-    x1=dCx; y1=dragPos.y+dragPos.h;
-    x2=targetPos.x+targetPos.w/2; y2=targetPos.y;
-  } else {
-    // Sibling: connect drag to target's parent level
-    x1=dCx; y1=dCy;
-    x2=targetPos.x+targetPos.w/2; y2=targetPos.y+(mode==='before'?0:targetPos.h);
+    x1 = dragPos.x + dragPos.w / 2;
+    y1 = dragPos.y + dragPos.h;
+    x2 = targetPos.x + targetPos.w / 2;
+    y2 = targetPos.y;
+  } else if (mode === 'before') {
+    x1 = dragPos.x + dragPos.w / 2;
+    y1 = dragPos.y;
+    x2 = targetPos.x + targetPos.w / 2;
+    y2 = targetPos.y;
+  } else { // after
+    x1 = dragPos.x + dragPos.w / 2;
+    y1 = dragPos.y + dragPos.h;
+    x2 = targetPos.x + targetPos.w / 2;
+    y2 = targetPos.y + targetPos.h;
   }
 
-  const color = mode==='into' ? '#34d399' : '#60a5fa';
-  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-  g.id='org-preview-edge';
-  g.style.pointerEvents='none';
-  // Curved path
-  const my = (y1+y2)/2;
-  g.innerHTML=`<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"
-    fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="6,4" opacity="0.85">
-    <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="0.5s" repeatCount="indefinite"/>
-  </path>
-  <circle cx="${x2}" cy="${y2}" r="5" fill="${color}" opacity="0.9"/>`;
+  const color = mode === 'into' ? '#34d399' : '#60a5fa';
+  const cy1 = y1 + (y2 - y1) * 0.4;
+  const cy2 = y1 + (y2 - y1) * 0.6;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.id = 'org-preview-edge';
+  g.setAttribute('pointer-events', 'none');
+  g.innerHTML = `
+    <path id="org-pe-path"
+      d="M${x1},${y1} C${x1},${cy1} ${x2},${cy2} ${x2},${y2}"
+      fill="none" stroke="${color}" stroke-width="3"
+      stroke-dasharray="8,5" stroke-linecap="round" opacity="0.9"/>
+    <circle cx="${x2}" cy="${y2}" r="6" fill="${color}" opacity="0.95"/>
+    <circle cx="${x1}" cy="${y1}" r="4" fill="${color}" opacity="0.7"/>`;
   orgG.appendChild(g);
+
+  // CSS animasyonu ile dashoffset kaydır (SVG animate yerine requestAnimationFrame)
+  let t = 0;
+  function animateDash() {
+    const el = document.getElementById('org-pe-path');
+    if (!el || !S.orgDragId) return;
+    t -= 1;
+    el.setAttribute('stroke-dashoffset', t);
+    requestAnimationFrame(animateDash);
+  }
+  requestAnimationFrame(animateDash);
 }
 
 function _orgSetDropHighlight(nid, on, mode='into') {
