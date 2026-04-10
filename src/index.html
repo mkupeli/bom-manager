@@ -252,7 +252,7 @@ select.field-input{cursor:pointer}
 
 <div class="titlebar">
   <span class="titlebar-icon">🔧</span>
-  <span class="titlebar-text">BOM MANAGER v2.3</span>
+  <span class="titlebar-text">BOM MANAGER v2.4</span>
   <span class="titlebar-badge">OFFLINE</span>
 </div>
 
@@ -474,7 +474,7 @@ function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;c
 // ═══════ MAIN ═══════
 function renderMain(){
   const el=document.getElementById("mainContent");
-  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.3</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
+  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.4</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
   el.innerHTML=`
     <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div><div class="sys-hdr-sn">S/N: ${sys.serialNo}</div></div></div>
@@ -518,9 +518,7 @@ function renderToolbar(){
   } else if(S.tab==='sunburst'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Dilime tıkla: içine gir &nbsp;|&nbsp; Ortaya tıkla veya breadcrumb: geri çık</span><div class="tool-spacer"></div>`;
   } else if(S.tab==='bomtable'){
-    const q=S.bomTableSearch||'';
-    tb.innerHTML=`<input id="bomTableSearch" class="sidebar-search" style="width:220px;padding:5px 9px;font-size:11px" placeholder="Filtrele: ad, parça no..." value="${q.replace(/"/g,'&quot;')}" oninput="bomTableFilter(this.value)">
-      <span style="font-size:10px;color:var(--tx3);margin-left:8px" id="bomTableInfo"></span>
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)" id="bomTableInfo"></span>
       <div class="tool-spacer"></div>
       <button class="tool-btn" onclick="exportBomTableCSV()">⬇ CSV İndir</button>`;
     setTimeout(()=>{updateBomTableInfo();},0);
@@ -2632,22 +2630,32 @@ async function processExcel(){
   const data=window._xlData;if(!data)return;
   const get=id=>{const v=parseInt(document.getElementById(id)?.value);return v>=0?v:-1};
   const nameCol=get('xl-name'),pnCol=get('xl-pn'),snCol=get('xl-sn'),qtyCol=get('xl-qty'),jiraCol=get('xl-jira'),parentCol=get('xl-parent'),levelCol=get('xl-level'),idCol=get('xl-id');
-  
+
   if(nameCol<0){toast("Parça Adı sütunu gerekli","error");return}
+
+  const headers=data[0]||[];
+  const mappedCols=new Set([nameCol,pnCol,snCol,qtyCol,jiraCol,parentCol,levelCol,idCol].filter(c=>c>=0));
+  // Extra (unmapped) columns
+  const extraColIdxs=headers.map((_,i)=>i).filter(i=>!mappedCols.has(i));
+  const extraColNames=extraColIdxs.map(i=>(headers[i]||'Col'+i).toString());
 
   const rows=data.slice(1).filter(r=>r[nameCol]);
   const sysId=gid();
   const sysName=window._xlFileName||("Excel Import — "+new Date().toLocaleDateString("tr-TR"));
-  
-  // Build tree
+
+  function makeExtra(r){
+    const ex={};
+    extraColIdxs.forEach((ci,ii)=>{ex[extraColNames[ii]]=String(r[ci]??'')});
+    return ex;
+  }
+
   let children=[];
-  
+
   if(parentCol>=0 && idCol>=0){
-    // Parent ID mode
     const nodeMap={};
     for(const r of rows){
       const id=String(r[idCol]||gid());
-      nodeMap[id]={id:'xl-'+id,name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]};
+      nodeMap[id]={id:'xl-'+id,name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]};
     }
     for(const r of rows){
       const id=String(r[idCol]);
@@ -2656,11 +2664,10 @@ async function processExcel(){
       else{children.push(nodeMap[id])}
     }
   } else if(levelCol>=0){
-    // Level/indent mode
     const stack=[{children}];
     for(const r of rows){
       const level=parseInt(r[levelCol])||0;
-      const node={id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]};
+      const node={id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]};
       while(stack.length>level+1)stack.pop();
       if(stack.length<=level)stack.push(stack[stack.length-1].children[stack[stack.length-1].children.length-1]||{children});
       const parent=stack[stack.length-1];
@@ -2668,13 +2675,12 @@ async function processExcel(){
       stack.push(node);
     }
   } else {
-    // Flat list
     for(const r of rows){
-      children.push({id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',children:[]});
+      children.push({id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]});
     }
   }
 
-  S.systems.push({id:sysId,name:sysName,type:"Import",serialNo:`XLS-${Date.now().toString(36).toUpperCase()}`,status:"Aktif",icon:"📦",revision:"Rev-A",children});
+  S.systems.push({id:sysId,name:sysName,type:"Import",serialNo:`XLS-${Date.now().toString(36).toUpperCase()}`,status:"Aktif",icon:"📦",revision:"Rev-A",_extraCols:extraColNames,children});
   addRev("Excel içe aktarıldı",`${rows.length} satır → ${sysName}`);
   await persist();closeModal();selSys(sysId);renderSidebar();toast(`${rows.length} parça yüklendi`);
 }
@@ -3115,45 +3121,58 @@ window._sbShowCenter = function(e, name) {
 window._sbHideTip = function() { const t=document.getElementById('sbTip'); if(t) t.style.display='none'; };
 
 // ═══════ BOM TABLOSU (Virtual Scroll) ═══════
-S.bomTableSearch = ''; S.bomTableRows = []; S.bomTableFiltered = [];
-const BT_ROW_H = 34; // px per row
-const BT_OVERSCAN = 10; // extra rows above/below viewport
-const BT_COLS = ['depth','name','partNo','serialNo','qty','jiraKey','path'];
+S.bomTableRows = []; S.bomTableFiltered = []; S.bomTableColFilters = {};
+const BT_ROW_H = 34;
+const BT_OVERSCAN = 10;
 const BT_DEPTH_COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6'];
+
+function _btGetCols(sys) {
+  // Fixed cols always shown
+  const fixed = [
+    { key:'depth',  label:'Lvl',      w:'60px',  align:'left'  },
+    { key:'name',   label:'Parça Adı', w:'auto',  align:'left'  },
+    { key:'partNo', label:'Parça No',  w:'160px', align:'left'  },
+    { key:'qty',    label:'Adet',      w:'60px',  align:'right' },
+  ];
+  // Dynamic extra cols from import
+  const extra = (sys._extraCols||[]).map(c=>({ key:'_x_'+c, label:c, w:'140px', align:'left', extraName:c }));
+  return [...fixed, ...extra];
+}
 
 function renderBomTable(container) {
   const sys = S.systems.find(s => s.id === S.selSys); if (!sys) return;
+  S.bomTableColFilters = {};
 
-  // Flatten once
   const flat = [];
-  function walk(nodes, depth, path) {
+  function walk(nodes, depth) {
     for (const n of nodes) {
-      flat.push({ depth, name: n.name||'', partNo: n.partNo||'', serialNo: n.serialNo||'', qty: n.qty||1, jiraKey: n.jiraKey||'', path });
-      if (n.children?.length) walk(n.children, depth+1, path+(path?' › ':'')+n.name);
+      flat.push({ depth, name: n.name||'', partNo: n.partNo||'', qty: n.qty||1, _extra: n._extra||{} });
+      if (n.children?.length) walk(n.children, depth+1);
     }
   }
-  walk(sys.children, 0, '');
+  walk(sys.children, 0);
   S.bomTableRows = flat;
   S.bomTableSort = { col: 'depth', dir: 1 };
   _btApplyFilter();
 
-  container.innerHTML = `<div style="height:100%;display:flex;flex-direction:column">
-    <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;flex-shrink:0">
+  const cols = _btGetCols(sys);
+  const thStyle = 'padding:7px 10px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;white-space:nowrap;user-select:none;background:var(--bg2)';
+  const fiStyle = 'width:100%;padding:3px 6px;background:var(--sf);border:1px solid var(--brd);border-radius:4px;color:var(--tx);font-size:10px;font-family:inherit;outline:none;box-sizing:border-box';
+
+  const headRow = cols.map(c=>`<th style="${thStyle};width:${c.w};text-align:${c.align}" onclick="sortBomTable('${c.key}')">${c.label} <span style="opacity:.5" id="bts-${c.key}"></span></th>`).join('');
+  const filterRow = cols.map(c=>`<td style="padding:3px 6px;background:var(--bg2);border-bottom:2px solid var(--brd)"><input style="${fiStyle}" placeholder="Filtrele..." oninput="btColFilter('${c.key}',this.value)" value="${(S.bomTableColFilters[c.key]||'').replace(/"/g,'&quot;')}"></td>`).join('');
+
+  container.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
+    <table id="btHeadTable" style="width:100%;border-collapse:collapse;font-size:11px;flex-shrink:0;table-layout:fixed">
       <thead>
-        <tr id="btHead" style="background:var(--bg2)">
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;white-space:nowrap;width:60px" onclick="sortBomTable('depth')">Lvl ↕</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer" onclick="sortBomTable('name')">Parça Adı ↕</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:140px" onclick="sortBomTable('partNo')">Parça No ↕</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:120px" onclick="sortBomTable('serialNo')">Seri No ↕</th>
-          <th style="padding:8px 12px;text-align:right;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:60px" onclick="sortBomTable('qty')">Adet ↕</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;width:100px" onclick="sortBomTable('jiraKey')">Jira ↕</th>
-          <th style="padding:8px 12px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);width:180px">Yol</th>
-        </tr>
+        <tr>${headRow}</tr>
+        <tr id="btFilterRow">${filterRow}</tr>
       </thead>
     </table>
-    <div id="btScroll" style="flex:1;overflow-y:auto;position:relative" onscroll="_btOnScroll()">
+    <div id="btScroll" style="flex:1;overflow-y:auto;overflow-x:auto;position:relative" onscroll="_btOnScroll()">
       <div id="btSpacer" style="position:relative;width:100%">
-        <table id="btTable" style="width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;position:absolute;top:0;left:0;right:0">
+        <table id="btTable" style="width:100%;border-collapse:collapse;font-size:11px;position:absolute;top:0;left:0;right:0;table-layout:fixed">
+          <colgroup>${cols.map(c=>`<col style="width:${c.w}">`).join('')}</colgroup>
           <tbody id="btBody"></tbody>
         </table>
       </div>
@@ -3162,64 +3181,95 @@ function renderBomTable(container) {
 
   _btRenderViewport();
   updateBomTableInfo();
+  _btUpdateSortIndicators();
 }
 
 function _btApplyFilter() {
-  const q = (S.bomTableSearch||'').toLowerCase();
-  let rows = q ? S.bomTableRows.filter(r =>
-    r.name.toLowerCase().includes(q) || r.partNo.toLowerCase().includes(q) ||
-    r.serialNo.toLowerCase().includes(q) || r.jiraKey.toLowerCase().includes(q) || r.path.toLowerCase().includes(q)
-  ) : [...S.bomTableRows];
+  const cf = S.bomTableColFilters||{};
+  const sys = S.systems.find(s=>s.id===S.selSys);
+  const cols = sys ? _btGetCols(sys) : [];
+
+  let rows = S.bomTableRows.filter(r => {
+    for (const c of cols) {
+      const fv = (cf[c.key]||'').toLowerCase(); if (!fv) continue;
+      const cv = c.extraName ? (r._extra[c.extraName]||'') : String(r[c.key]??'');
+      if (!cv.toLowerCase().includes(fv)) return false;
+    }
+    return true;
+  });
 
   if (S.bomTableSort) {
     const {col, dir} = S.bomTableSort;
-    rows.sort((a,b) => { const av=a[col], bv=b[col]; return (typeof av==='number'?av-bv:String(av).localeCompare(String(bv)))*dir; });
+    const ec = cols.find(c=>c.key===col)?.extraName;
+    rows.sort((a,b) => {
+      const av = ec ? (a._extra[ec]||'') : a[col];
+      const bv = ec ? (b._extra[ec]||'') : b[col];
+      return (typeof av==='number'&&typeof bv==='number' ? av-bv : String(av).localeCompare(String(bv)))*dir;
+    });
   }
   S.bomTableFiltered = rows;
 }
 
 function _btRenderViewport() {
   const scroller = document.getElementById('btScroll');
-  const spacer = document.getElementById('btSpacer');
-  const tbody = document.getElementById('btBody');
-  const table = document.getElementById('btTable');
-  if (!scroller || !spacer || !tbody) return;
+  const spacer   = document.getElementById('btSpacer');
+  const tbody    = document.getElementById('btBody');
+  const table    = document.getElementById('btTable');
+  if (!scroller||!spacer||!tbody) return;
 
+  const sys = S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const cols = _btGetCols(sys);
   const rows = S.bomTableFiltered;
   const total = rows.length;
-  const totalH = total * BT_ROW_H;
-  spacer.style.height = totalH + 'px';
+  spacer.style.height = (total * BT_ROW_H) + 'px';
 
   const scrollTop = scroller.scrollTop;
   const viewH = scroller.clientHeight || 600;
-  const firstVisible = Math.max(0, Math.floor(scrollTop / BT_ROW_H) - BT_OVERSCAN);
-  const lastVisible = Math.min(total - 1, Math.ceil((scrollTop + viewH) / BT_ROW_H) + BT_OVERSCAN);
-
-  table.style.top = (firstVisible * BT_ROW_H) + 'px';
+  const first = Math.max(0, Math.floor(scrollTop/BT_ROW_H) - BT_OVERSCAN);
+  const last  = Math.min(total-1, Math.ceil((scrollTop+viewH)/BT_ROW_H) + BT_OVERSCAN);
+  table.style.top = (first * BT_ROW_H) + 'px';
 
   let html = '';
-  for (let i = firstVisible; i <= lastVisible; i++) {
+  for (let i = first; i <= last; i++) {
     const r = rows[i];
-    const col = BT_DEPTH_COLORS[r.depth % BT_DEPTH_COLORS.length];
+    const dc = BT_DEPTH_COLORS[r.depth % BT_DEPTH_COLORS.length];
     const bg = i%2===0 ? 'transparent' : 'var(--sf)';
-    html += `<tr style="height:${BT_ROW_H}px;background:${bg}" onmouseenter="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${bg}'">
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:4px;vertical-align:middle"></span>${r.depth}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-weight:${r.depth===0?'600':'400'};padding-left:${12+r.depth*12}px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--ac2);white-space:nowrap">${r.partNo||'—'}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--tx3);white-space:nowrap">${r.serialNo||'—'}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);text-align:right;color:var(--warn);font-family:'JetBrains Mono',monospace">×${r.qty}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);font-family:'JetBrains Mono',monospace;color:var(--ok);white-space:nowrap">${r.jiraKey||'—'}</td>
-      <td style="padding:0 12px;border-bottom:1px solid var(--brd);color:var(--tx4);font-size:9px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.path||'—'}</td>
-    </tr>`;
+    html += `<tr style="height:${BT_ROW_H}px;background:${bg}" onmouseenter="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${bg}'">`;
+    for (const c of cols) {
+      let cell;
+      if (c.key==='depth') {
+        cell = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dc};margin-right:5px;vertical-align:middle"></span>${r.depth}`;
+      } else if (c.key==='name') {
+        cell = `<span style="padding-left:${r.depth*14}px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;font-weight:${r.depth===0?'600':'400'}">${r.name}</span>`;
+      } else if (c.key==='partNo') {
+        cell = `<span style="font-family:'JetBrains Mono',monospace;color:var(--ac2)">${r.partNo||'—'}</span>`;
+      } else if (c.key==='qty') {
+        cell = `<span style="font-family:'JetBrains Mono',monospace;color:var(--warn)">×${r.qty}</span>`;
+      } else if (c.extraName) {
+        cell = `<span style="color:var(--tx2)">${r._extra[c.extraName]||'—'}</span>`;
+      } else { cell = ''; }
+      html += `<td style="padding:0 10px;border-bottom:1px solid var(--brd);text-align:${c.align};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${cell}</td>`;
+    }
+    html += `</tr>`;
   }
   tbody.innerHTML = html;
 }
 
 function _btOnScroll() { _btRenderViewport(); }
 
+function _btUpdateSortIndicators() {
+  const sys = S.systems.find(s=>s.id===S.selSys); if (!sys) return;
+  _btGetCols(sys).forEach(c => {
+    const el = document.getElementById('bts-'+c.key); if (!el) return;
+    if (S.bomTableSort?.col===c.key) el.textContent = S.bomTableSort.dir===1?'↑':'↓';
+    else el.textContent = '↕';
+  });
+}
+
 let _bomTableFilterTimer = null;
-function bomTableFilter(q) {
-  S.bomTableSearch = q;
+function btColFilter(col, val) {
+  if (!S.bomTableColFilters) S.bomTableColFilters = {};
+  S.bomTableColFilters[col] = val;
   if (_bomTableFilterTimer) clearTimeout(_bomTableFilterTimer);
   _bomTableFilterTimer = setTimeout(() => {
     _btApplyFilter();
@@ -3227,8 +3277,9 @@ function bomTableFilter(q) {
     if (scroller) scroller.scrollTop = 0;
     _btRenderViewport();
     updateBomTableInfo();
-  }, 200);
+  }, 180);
 }
+
 function sortBomTable(col) {
   if (!S.bomTableSort) S.bomTableSort = {col, dir:1};
   else if (S.bomTableSort.col===col) S.bomTableSort.dir *= -1;
@@ -3238,6 +3289,7 @@ function sortBomTable(col) {
   if (scroller) scroller.scrollTop = 0;
   _btRenderViewport();
   updateBomTableInfo();
+  _btUpdateSortIndicators();
 }
 function updateBomTableInfo() {
   const el = document.getElementById('bomTableInfo'); if (!el) return;
@@ -3245,9 +3297,16 @@ function updateBomTableInfo() {
   el.textContent = shown===total ? `${total} parça` : `${shown}/${total} parça`;
 }
 function exportBomTableCSV() {
+  const sys = S.systems.find(s=>s.id===S.selSys); if (!sys) return;
+  const cols = _btGetCols(sys);
   const rows = S.bomTableFiltered||S.bomTableRows||[]; if (!rows.length) return;
-  const header = ['Seviye','Parça Adı','Parça No','Seri No','Adet','Jira Key','Yol'];
-  const lines = [header.join(','), ...rows.map(r=>[r.depth,`"${r.name}"`,r.partNo,r.serialNo,r.qty,r.jiraKey,`"${r.path}"`].join(','))];
+  const header = cols.map(c=>c.label);
+  const lines = [header.join(','), ...rows.map(r=>cols.map(c=>{
+    let v;
+    if (c.extraName) v = r._extra[c.extraName]||'';
+    else v = String(r[c.key]??'');
+    return `"${v.replace(/"/g,'""')}"`;
+  }).join(','))];
   const blob = new Blob(['\uFEFF'+lines.join('\n')], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bom-export.csv'; a.click();
 }
@@ -3392,27 +3451,146 @@ function renderDashboard(container){
   // Parts with children count (sub-systems)
   const subSystems=flat.filter(n=>{const node=find(sys.children,n.id);return node&&node.children&&node.children.length>0});
 
-  container.innerHTML=`<div class="dash-grid">
-    <div class="dash-card"><div class="dash-card-title">Toplam Parça</div><div class="dash-big">${total}</div><div class="dash-sub">${totalQty} adet (toplam miktar)</div></div>
-    <div class="dash-card"><div class="dash-card-title">Derinlik</div><div class="dash-big">${maxDepth}</div><div class="dash-sub">seviye ağaç derinliği</div></div>
-    <div class="dash-card"><div class="dash-card-title">Jira Takibi</div><div class="dash-big" style="color:${withJira===total?'var(--ok)':'var(--warn)'}">${Math.round(withJira/total*100)||0}%</div><div class="dash-sub">${withJira}/${total} parçada Jira key var</div></div>
-    <div class="dash-card"><div class="dash-card-title">Alt Sistem Sayısı</div><div class="dash-big">${sys.children.length}</div><div class="dash-sub">${subSystems.length} iç içe alt sistem</div></div>
+  // ── BOM table stats ──
+  // Parça no doluluk
+  const withPN  = flat.filter(n=>n.partNo).length;
+  const dupPNs  = _dashDuplicates(flat.map(n=>n.partNo).filter(Boolean));
+  // Leaf vs branch
+  function isLeaf(n){ const node=find(sys.children,n.id||''); return !node?.children?.length; }
+  function flatWithNode(nodes,d){ let a=[];for(const n of nodes){a.push({...n,_node:n,_depth:d});if(n.children?.length)a=a.concat(flatWithNode(n.children,d+1))}return a; }
+  const flatFull=flatWithNode(sys.children,0);
+  const leaves=flatFull.filter(n=>!n._node.children?.length);
+  const branches=flatFull.filter(n=>n._node.children?.length>0);
+  const leafQty=leaves.reduce((s,n)=>s+(n.qty||1),0);
+  // Orphan / no PN at leaf
+  const leafNoPN=leaves.filter(n=>!n.partNo);
+  // Qty distribution
+  const qty1=flat.filter(n=>n.qty===1).length;
+  const qtyGt1=flat.filter(n=>n.qty>1).length;
+  const avgQty=total?Math.round(totalQty/total*10)/10:0;
+  // Depth histogram (top 8 levels)
+  const depthHist={};
+  flat.forEach(n=>{ depthHist[n._depth]=(depthHist[n._depth]||0)+1 });
+  const depthMax=Math.max(...Object.values(depthHist));
+  // Avg children per branch
+  const avgChildren=branches.length?Math.round(branches.reduce((s,n)=>s+(n._node.children?.length||0),0)/branches.length*10)/10:0;
 
-    <div class="dash-card" style="grid-column:span 2"><div class="dash-card-title">Seviye Dağılımı</div>
-      ${Object.entries(byDepth).map(([lbl,count])=>{const pct=Math.round(count/total*100);return`<div class="dash-bar"><span class="dash-bar-label">${lbl}</span><div class="dash-bar-track"><div class="dash-bar-fill" style="width:${pct}%;background:var(--ac)"></div></div><span class="dash-bar-val">${count}</span></div>`}).join('')}
+  const barRow=(label,val,max,color,sub='')=>`<div class="dash-bar" style="margin:5px 0">
+    <span class="dash-bar-label" style="min-width:90px;font-size:10px">${label}</span>
+    <div class="dash-bar-track" style="flex:1"><div class="dash-bar-fill" style="width:${max?Math.round(val/max*100):0}%;background:${color}"></div></div>
+    <span class="dash-bar-val">${val}${sub}</span></div>`;
+
+  container.innerHTML=`<div style="overflow-y:auto;height:100%;padding:0 0 20px">
+  <div class="dash-grid">
+    <!-- ROW 1: Temel istatistikler -->
+    <div class="dash-card"><div class="dash-card-title">Toplam Parça (benzersiz tip)</div><div class="dash-big">${total}</div><div class="dash-sub">${branches.length} alt sistem &nbsp;·&nbsp; ${leaves.length} yaprak parça</div></div>
+    <div class="dash-card"><div class="dash-card-title">Toplam Adet (stok)</div><div class="dash-big">${totalQty.toLocaleString('tr-TR')}</div><div class="dash-sub">Ortalama ×${avgQty} / parça tipi &nbsp;·&nbsp; Yaprak: ${leafQty.toLocaleString('tr-TR')}</div></div>
+    <div class="dash-card"><div class="dash-card-title">Ağaç Derinliği</div><div class="dash-big">${maxDepth}</div><div class="dash-sub">Ortalama ${avgChildren} alt / ara düğüm</div></div>
+    <div class="dash-card"><div class="dash-card-title">Parça No Doluluk</div>
+      <div class="dash-big" style="color:${withPN===total?'var(--ok)':withPN/total>.7?'var(--warn)':'var(--err)'}">${total?Math.round(withPN/total*100):0}%</div>
+      <div class="dash-sub">${withPN}/${total} parçada parça no var · ${dupPNs.length} duplikat</div></div>
+
+    <!-- ROW 2: Yapı analizi -->
+    <div class="dash-card" style="grid-column:span 2"><div class="dash-card-title">Seviye Dağılımı (parça sayısı)</div>
+      ${Object.entries(depthHist).sort((a,b)=>+a[0]-+b[0]).map(([d,cnt])=>barRow(
+        `${ ['Alt Sistem','Bileşen','Parça','Alt Parça'][+d]||'Seviye '+d} (L${d})`, cnt, depthMax,
+        ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6'][+d%6]
+      )).join('')}
     </div>
 
-    <div class="dash-card"><div class="dash-card-title">En Yüksek Adetli Parçalar</div>
-      ${topQty.map(n=>`<div class="dash-list-item"><span style="flex:1">${n.name}</span><span style="color:var(--warn);font-family:'JetBrains Mono',monospace">×${n.qty}</span></div>`).join('')}
+    <div class="dash-card"><div class="dash-card-title">Adet Dağılımı</div>
+      ${barRow('Adet = 1',qty1,total,'var(--tx3)',' parça')}
+      ${barRow('Adet > 1',qtyGt1,total,'var(--warn)',' parça')}
+      <div style="margin-top:10px;font-size:10px;color:var(--tx3)">En yüksek adetli</div>
+      ${topQty.slice(0,5).map(n=>`<div class="dash-list-item"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.name}</span><span style="color:var(--warn);font-family:'JetBrains Mono',monospace;flex-shrink:0">×${n.qty}</span></div>`).join('')}
     </div>
 
-    <div class="dash-card"><div class="dash-card-title">Jira Key Eksik (${noJira.length})</div>
-      ${noJira.length===0?'<div style="color:var(--ok);font-size:11px;padding:8px">Tüm parçalarda Jira key mevcut</div>':
-      noJira.slice(0,10).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name}</span><span class="cmp-pn">${n.partNo||'—'}</span></div>`).join('')+(noJira.length>10?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...ve ${noJira.length-10} parça daha</div>`:'')}
+    <!-- ROW 3: Kalite göstergeleri -->
+    <div class="dash-card"><div class="dash-card-title">Yaprak Parça Kalitesi (${leaves.length} parça)</div>
+      ${barRow('Parça No var',leaves.length-leafNoPN.length,leaves.length,'var(--ok)')}
+      ${barRow('Parça No eksik',leafNoPN.length,leaves.length,'var(--err)')}
+      ${leafNoPN.length>0?`<div style="margin-top:8px;font-size:9px;color:var(--tx3);margin-bottom:4px">Parça No eksik yapraklar</div>
+      ${leafNoPN.slice(0,6).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name||'—'}</span></div>`).join('')}
+      ${leafNoPN.length>6?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...+${leafNoPN.length-6} daha</div>`:''}`:'<div style="color:var(--ok);font-size:11px;padding:8px 0">Tüm yaprak parçalarda PN mevcut</div>'}
+    </div>
+
+    <div class="dash-card"><div class="dash-card-title">Duplikat Parça No (${dupPNs.length})</div>
+      ${dupPNs.length===0?'<div style="color:var(--ok);font-size:11px;padding:8px 0">Duplikat parça no bulunamadı</div>':
+      dupPNs.slice(0,8).map(({pn,count})=>`<div class="dash-list-item"><span style="font-family:monospace;color:var(--ac2);flex:1">${pn}</span><span style="color:var(--err);font-size:9px">×${count}</span></div>`).join('')+
+      (dupPNs.length>8?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...+${dupPNs.length-8} daha</div>`:'')}
+    </div>
+
+    <div class="dash-card"><div class="dash-card-title">Jira Takibi</div>
+      <div class="dash-big" style="color:${withJira===total?'var(--ok)':'var(--warn)'}">${total?Math.round(withJira/total*100):0}%</div>
+      <div class="dash-sub" style="margin-bottom:10px">${withJira}/${total} parçada Jira key var</div>
+      ${noJira.length===0?'<div style="color:var(--ok);font-size:11px">Tüm parçalar takip altında</div>':
+        noJira.slice(0,6).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name}</span><span class="cmp-pn">${n.partNo||'—'}</span></div>`).join('')+
+        (noJira.length>6?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...+${noJira.length-6} daha</div>`:'')}
     </div>
 
     ${_dashMatchCard(sys, flat)}
-  </div>`;
+    ${_dashExtraCols(sys, flatFull)}
+  </div></div>`;
+}
+
+function _dashExtraCols(sys, flatFull) {
+  // Extra columns (from Excel import)
+  const extraCols = sys._extraCols||[];
+
+  // Also scan for any non-standard keys on nodes (like _oid, custom fields)
+  // and treat high-cardinality-friendly ones
+  const customKeys = [];
+  if (flatFull.length > 0) {
+    const skip = new Set(['id','name','partNo','serialNo','qty','jiraKey','children','_depth','_extra','_oid','_path']);
+    const sample = flatFull[0];
+    Object.keys(sample).forEach(k=>{ if(!skip.has(k) && k.charAt(0)!=='_') customKeys.push(k); });
+  }
+
+  if (!extraCols.length && !customKeys.length) return '';
+
+  const allCols = [...new Set([...extraCols, ...customKeys])];
+
+  const colCards = allCols.map(col => {
+    // Gather values from _extra or direct node property
+    const vals = flatFull.map(n => {
+      const v = n._extra ? (n._extra[col]??'') : (n[col]??'');
+      return String(v).trim();
+    });
+    const nonEmpty = vals.filter(v=>v && v!=='0' && v.toLowerCase()!=='null');
+    const fillRate = flatFull.length ? Math.round(nonEmpty.length/flatFull.length*100) : 0;
+
+    // Value distribution (top 10 unique values)
+    const dist={};
+    nonEmpty.forEach(v=>{dist[v]=(dist[v]||0)+1});
+    const sorted=Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+    const top=sorted.slice(0,8);
+    const maxCnt=top.length?top[0][1]:1;
+    const colors=['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6','#14b8a6','#f97316'];
+
+    return `<div class="dash-card">
+      <div class="dash-card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>${col}</span>
+        <span style="font-size:9px;color:${fillRate>80?'var(--ok)':fillRate>40?'var(--warn)':'var(--err)'}">%${fillRate} dolu</span>
+      </div>
+      <div style="font-size:10px;color:var(--tx3);margin-bottom:8px">${sorted.length} benzersiz değer · ${nonEmpty.length} kayıt</div>
+      ${top.map(([val,cnt],i)=>`<div class="dash-bar" style="margin:4px 0">
+        <span style="min-width:100px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--tx2)" title="${val}">${val||'—'}</span>
+        <div class="dash-bar-track" style="flex:1"><div class="dash-bar-fill" style="width:${Math.round(cnt/maxCnt*100)}%;background:${colors[i%colors.length]}"></div></div>
+        <span class="dash-bar-val">${cnt}</span>
+      </div>`).join('')}
+      ${sorted.length>8?`<div style="font-size:9px;color:var(--tx4);margin-top:4px">...+${sorted.length-8} değer daha</div>`:''}
+    </div>`;
+  });
+
+  return `<div style="grid-column:1/-1;padding:12px 0 4px;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);font-weight:600;border-top:1px solid var(--brd)">
+    BOM Tablosu Sütun İstatistikleri
+  </div>
+  ${colCards.join('')}`;
+}
+
+function _dashDuplicates(arr){
+  const cnt={};arr.forEach(v=>{cnt[v]=(cnt[v]||0)+1});
+  return Object.entries(cnt).filter(([,c])=>c>1).sort((a,b)=>b[1]-a[1]).map(([pn,count])=>({pn,count}));
 }
 
 function _dashMatchCard(sys, flatA) {
