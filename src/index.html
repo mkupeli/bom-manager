@@ -252,7 +252,7 @@ select.field-input{cursor:pointer}
 
 <div class="titlebar">
   <span class="titlebar-icon">🔧</span>
-  <span class="titlebar-text">BOM MANAGER v2.0</span>
+  <span class="titlebar-text">BOM MANAGER v2.2</span>
   <span class="titlebar-badge">OFFLINE</span>
 </div>
 
@@ -473,7 +473,7 @@ function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;c
 // ═══════ MAIN ═══════
 function renderMain(){
   const el=document.getElementById("mainContent");
-  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.0</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
+  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.2</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
   el.innerHTML=`
     <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div><div class="sys-hdr-sn">S/N: ${sys.serialNo}</div></div></div>
@@ -706,6 +706,7 @@ function _doSearch(q) {
     updateSearchInfo();
     // Apply highlight classes in-place without full re-render
     _applySearchHighlight();
+    scrollToHit();
   }
 }
 
@@ -737,7 +738,15 @@ function searchNav(dir){
 function searchKeyNav(e){if(e.key==='Enter'){e.preventDefault();searchNav(e.shiftKey?-1:1)}if(e.key==='Escape'){S.searchQuery='';S.searchHits=[];S.searchIdx=0;renderTab()}}
 function scrollToHit(){
   const id=S.searchHits[S.searchIdx];if(!id)return;
-  setTimeout(()=>{const el=document.getElementById('tn-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},50);
+  const wrap=_treeScrollEl||document.getElementById('treeVWrap');if(!wrap)return;
+  const rowIdx=_treeRows.findIndex(r=>r.n.id===id);
+  if(rowIdx<0){
+    // Fallback: element may be in DOM (non-virtual path)
+    setTimeout(()=>{const el=document.getElementById('tn-'+id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},50);
+    return;
+  }
+  const targetY=rowIdx*TREE_ROW_H - wrap.clientHeight/2 + TREE_ROW_H/2;
+  wrap.scrollTo({top:Math.max(0,targetY),behavior:'smooth'});
 }
 function updateSearchInfo(){
   const el=document.getElementById('searchInfo');if(!el)return;
