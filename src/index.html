@@ -252,7 +252,7 @@ select.field-input{cursor:pointer}
 
 <div class="titlebar">
   <span class="titlebar-icon">🔧</span>
-  <span class="titlebar-text">BOM MANAGER v2.2</span>
+  <span class="titlebar-text">BOM MANAGER v2.3</span>
   <span class="titlebar-badge">OFFLINE</span>
 </div>
 
@@ -429,6 +429,7 @@ function showSysCtxMenu(e,id){
   m.innerHTML=`
     <div class="ctx-item" onclick="closeCtxMenu();selSys('${id}')">✏️ Seç</div>
     <div class="ctx-item" onclick="closeCtxMenu();renameSys('${id}')">📝 Yeniden Adlandır</div>
+    <div class="ctx-item" onclick="closeCtxMenu();exportSysExcel('${id}')">📗 Excel Dışa Aktar</div>
     <div class="ctx-item danger" onclick="closeCtxMenu();confirmDeleteSys('${id}')">🗑 Sil</div>`;
   m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
   document.body.appendChild(m);
@@ -473,7 +474,7 @@ function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;c
 // ═══════ MAIN ═══════
 function renderMain(){
   const el=document.getElementById("mainContent");
-  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.2</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
+  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.3</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
   el.innerHTML=`
     <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div><div class="sys-hdr-sn">S/N: ${sys.serialNo}</div></div></div>
@@ -1196,6 +1197,24 @@ function renderOrgChart(container) {
     applyOrgTransform();
   }, { passive: false });
 
+  // Middle-click: collapse subtree + adjust depth
+  svg.addEventListener('mousedown', function(e) {
+    if (e.button === 1) {
+      e.preventDefault();
+      const nid = _orgNidAt(e.clientX, e.clientY);
+      if (nid && nid !== 'org-root') { orgCollapseSubtree(nid); }
+      return;
+    }
+  });
+
+  // Right-click on org node: context menu
+  svg.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    const nid = _orgNidAt(e.clientX, e.clientY);
+    if (!nid || nid === 'org-root') return;
+    showOrgNodeCtxMenu(e, nid);
+  });
+
   // Smart mousedown: node drag vs canvas pan
   svg.addEventListener('mousedown', function(e) {
     if (e.button !== 0) return;
@@ -1252,11 +1271,14 @@ function renderOrgChart(container) {
       const pe = document.getElementById('org-preview-edge'); if(pe) pe.remove();
       if (S.orgDragId) _orgNodeDragEnd(e);
       else if (S.orgDragCandidate) {
-        // It was a click, not a drag — handle toggle
+        // It was a click, not a drag — open right panel + handle toggle
         const nid = S.orgDragCandidate.nid;
         S.orgDragCandidate = null;
         const pos = (window._orgPositions||[]).find(p=>p.nid===nid);
         if (pos && (pos.collapsed || pos.canCollapse)) orgToggleNode(nid);
+        // Open detail panel for the clicked node
+        S.selNode = nid;
+        showNodeRP(nid);
       }
       S.orgDragCandidate = null;
     });
@@ -2222,7 +2244,10 @@ function closeRP(){document.getElementById("rpanel").classList.add("hidden");S.s
 function editNode(id){showNodeRP(id)}
 function delNode(id){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const n=find(sys.children,id);if(!n)return;
   showModal("Sil",`<b>${n.name}</b> silinecek?`,[{text:"İptal"},{text:"Sil",cls:"danger",action:async()=>{rm(sys.children,id);addRev("Silindi",n.name);await persist();closeRP();renderMain();toast("Silindi","info")}}])}
-function addChild(){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;showAddPartModal(sys)}
+function addChild(){
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  showAddPartModal(sys);
+}
 function addChildTo(pid){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const p=find(sys.children,pid);if(!p)return;showAddPartModal(p)}
 
 // ═══════ MODALS ═══════
@@ -2396,7 +2421,8 @@ function renderLibrary(){
     html+=libItems.map(l=>`
       <div class="lib-item" draggable="true" id="lib-${l.id}"
         ondragstart="libItemDragStart(event,'lib:${l.id}')"
-        ondragend="libItemDragEnd(event)">
+        ondragend="libItemDragEnd(event)"
+        oncontextmenu="showLibCtxMenu(event,'${l.id}')">
         <div class="lib-item-icon">⚙️</div>
         <div class="lib-item-info">
           <div class="lib-item-name" title="${l.name}">${l.name}</div>
@@ -2679,11 +2705,84 @@ async function importBomJSON(){const c=await window.api.importBomJson();if(!c)re
 
 async function exportExcel(){
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  await _doExportSysExcel(sys);
+}
+
+async function exportSysExcel(id){
+  const sys=S.systems.find(s=>s.id===id);if(!sys)return;
+  await _doExportSysExcel(sys);
+}
+
+async function _doExportSysExcel(sys){
   const rows=[["Level","Parça Adı","Parça No","Seri No","Adet","Jira Key","Parent"]];
   const w=(ns,d,pn)=>{for(const n of ns){rows.push([d,n.name,n.partNo||"",n.serialNo,n.qty||1,n.jiraKey||"",pn]);if(n.children?.length)w(n.children,d+1,n.name)}};
   w(sys.children,0,sys.name);
   const p=await window.api.exportExcel({sheetData:rows,fileName:`${sys.name}-BOM.xlsx`});
   if(p){addRev("Excel export",p.split(/[/\\]/).pop());await persist();toast("Excel kaydedildi")}
+}
+
+function showLibCtxMenu(e,id){
+  e.preventDefault();e.stopPropagation();
+  closeCtxMenu();
+  const item=S.library.find(l=>l.id===id);if(!item)return;
+  const m=document.createElement('div');
+  m.className='ctx-menu';m.id='sysCtxMenu';
+  m.innerHTML=`
+    <div class="ctx-item danger" onclick="closeCtxMenu();removeFromLibrary('${id}')">🗑 Kütüphaneden Sil</div>`;
+  m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
+  document.body.appendChild(m);
+  setTimeout(()=>document.addEventListener('click',closeCtxMenu,{once:true}),0);
+}
+
+function orgCollapseSubtree(nid){
+  if(!S.orgExpanded)S.orgExpanded=new Set();
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+
+  // Collect this node and all expanded descendants to remove from orgExpanded
+  const toRemove=new Set([nid]);
+  function collectExpanded(n){
+    if(!n)return;
+    if(S.orgExpanded.has(n.id))toRemove.add(n.id);
+    for(const c of n.children||[])collectExpanded(c);
+  }
+  const targetNode=find(sys.children,nid);
+  if(targetNode){for(const c of targetNode.children||[])collectExpanded(c);}
+  toRemove.forEach(id=>S.orgExpanded.delete(id));
+
+  // Depth'i hesapla: node'un ağaçtaki derinliği → orgMaxDepth'i buna ayarla
+  function findDepth(nodes,id,d){
+    for(const n of nodes||[]){
+      if(n.id===id)return d;
+      const found=findDepth(n.children,id,d+1);
+      if(found>=0)return found;
+    }
+    return -1;
+  }
+  const depth=findDepth(sys.children,nid,1);
+  if(depth>=0) S.orgMaxDepth=depth; // bu node'dan itibaren gösterme
+
+  S.orgFocusNid=S._orgParentOf?S._orgParentOf[nid]:null;
+  renderTab();
+}
+
+function showOrgNodeCtxMenu(e,nid){
+  closeCtxMenu();
+  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
+  const node=find(sys.children,nid);if(!node)return;
+  const m=document.createElement('div');
+  m.className='ctx-menu';m.id='sysCtxMenu';
+  const hasChildren=node.children?.length>0;
+  const isExpanded=S.orgExpanded?.has(nid);
+  m.innerHTML=`
+    <div class="ctx-item" onclick="closeCtxMenu();showNodeRP('${nid}')">✏️ Düzenle</div>
+    ${hasChildren?(isExpanded
+      ?`<div class="ctx-item" onclick="closeCtxMenu();orgToggleNode('${nid}')">▶ Kapat</div>`
+      :`<div class="ctx-item" onclick="closeCtxMenu();orgToggleNode('${nid}')">▼ Aç</div>`):''}
+    ${hasChildren?`<div class="ctx-item" onclick="closeCtxMenu();orgCollapseSubtree('${nid}')">⊟ Alt Dalları Kapat</div>`:''}
+    <div class="ctx-item danger" onclick="closeCtxMenu();delNode('${nid}')">🗑 Sil</div>`;
+  m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';
+  document.body.appendChild(m);
+  setTimeout(()=>document.addEventListener('click',closeCtxMenu,{once:true}),0);
 }
 
 // ═══════ BOM COMPARE ═══════
