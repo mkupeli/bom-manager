@@ -1,6 +1,6 @@
 {
   "name": "bom-manager",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "BOM Yönetim Sistemi - Jira Uyumlu, Excel Import, Görselleştirme (Offline)",
   "main": "src/main.js",
   "scripts": {
