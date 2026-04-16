@@ -533,8 +533,26 @@ function renderToolbar(){
   } else if(S.tab==='sunburst'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Dilime tıkla: içine gir &nbsp;|&nbsp; Ortaya tıkla veya breadcrumb: geri çık</span><div class="tool-spacer"></div>`;
   } else if(S.tab==='bomtable'){
+    if(!S.bomTableHiddenCols) S.bomTableHiddenCols=new Set();
+    const _sys=S.systems.find(s=>s.id===S.selSys);
+    const _extra=_sys?._extraCols||[];
+    const _vis=_extra.filter(c=>!S.bomTableHiddenCols.has('_x_'+c)).length;
+    const _badge=_extra.length?`<span style="font-size:9px;background:var(--sf3);padding:1px 5px;border-radius:3px;margin-left:3px;color:var(--ac2)">${_vis}/${_extra.length}</span>`:'';
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)" id="bomTableInfo"></span>
+      <div class="tool-sep"></div>
+      <div style="position:relative">
+        <button class="tool-btn" onclick="_btToggleColPanel(event)" id="btColBtn">📋 Sütunlar${_badge}</button>
+        <div id="btColPanel" style="display:none;position:fixed;z-index:200;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,.6);padding:8px;flex-direction:column;gap:6px">
+          <input id="btColSearch" class="field-input" placeholder="🔍 Sütun ara veya git..." style="font-size:11px;padding:6px 9px" oninput="_btColSearchInput(this.value)" onkeydown="_btColSearchKey(event)">
+          <div id="btColList" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:1px;margin-top:2px"></div>
+          <div style="padding-top:6px;border-top:1px solid var(--brd);display:flex;gap:5px">
+            <button class="tool-btn" style="flex:1;justify-content:center" onclick="_btShowAllCols()">Tümünü Göster</button>
+            <button class="tool-btn" style="flex:1;justify-content:center" onclick="_btHideExtraCols()">Tümünü Gizle</button>
+          </div>
+        </div>
+      </div>
       <div class="tool-spacer"></div>
+      <button class="tool-btn" onclick="importAuxData()" title="Stok no eşleştirmeli yardımcı veri yükle">📊 Durum Yükle</button>
       <button class="tool-btn" onclick="exportBomTableCSV()">⬇ CSV İndir</button>`;
     setTimeout(()=>{updateBomTableInfo();},0);
   } else if(S.tab==='dsm'){
@@ -2631,7 +2649,87 @@ async function createPart(pid,id){const n=document.getElementById("mp-n").value.
   S.expanded[pid]=true;addRev("Parça eklendi",`${n}→${p.name}`);await persist();closeModal();renderMain();toast("Eklendi")}
 
 // ═══════ IMPORT/EXPORT ═══════
-function showImportMenu(){showModal("İçe Aktar","Kaynak seçin:",[{text:"İptal"},{text:"📗 Excel",cls:"primary",action:importExcel},{text:"📄 Jira CSV",cls:"primary",action:importJiraCSV},{text:"💾 JSON",cls:"primary",action:importBomJSON}])}
+function showImportMenu(){showModal("İçe Aktar","Kaynak seçin:",[{text:"İptal"},{text:"📗 Excel (Yeni BOM)",cls:"primary",action:importExcel},{text:"📊 Durum/Ek Veri",cls:"primary",action:importAuxData},{text:"📄 Jira CSV",cls:"primary",action:importJiraCSV},{text:"💾 JSON",cls:"primary",action:importBomJSON}])}
+
+// ── AUX DATA IMPORT (Yardımcı Veri — stok no eşleştirmeli) ──
+async function importAuxData(){
+  const sys=S.systems.find(s=>s.id===S.selSys);
+  if(!sys){toast("Önce bir sistem seçin","error");return;}
+  const result=await window.api.importExcel();
+  if(!result)return;
+  if(result.error){toast("Excel hatası: "+result.error,"error");return;}
+  const sheet=result.sheets[0];
+  if(!sheet||!sheet.data?.length){toast("Boş Excel","error");return;}
+  const headers=sheet.data[0];
+  const rows=sheet.data.slice(1).filter(r=>r.some(c=>c!==''&&c!==null&&c!==undefined));
+  // Eşleştirme sütununu otomatik bul (Malzeme, stok no, part no vb.)
+  const hl=headers.map(h=>(h||'').toString().toLowerCase());
+  const autoKeyIdx=hl.findIndex(h=>h==='malzeme'||(h.startsWith('malzeme')&&!h.includes('kısa')&&!h.includes('metin')&&!h.includes('stok')&&!h.includes('aile')));
+  const keyIdx=autoKeyIdx>=0?autoKeyIdx:hl.findIndex(h=>h.includes('stok')||h.includes('parça no')||h.includes('part'));
+  const finalKey=keyIdx>=0?keyIdx:0;
+  const colOpts=headers.map((h,i)=>`<option value="${i}"${i===finalKey?' selected':''}>${h||'Col '+i}</option>`).join('');
+  const checkboxHtml=headers.map((h,i)=>i===finalKey?'':
+    `<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--tx2);transition:background .1s" onmouseover="this.style.background='var(--sf2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" class="aux-col-chk" value="${i}" checked style="accent-color:var(--ac);cursor:pointer">
+      ${h||'Col '+i}
+    </label>`
+  ).filter(Boolean).join('');
+  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" style="width:500px" onclick="event.stopPropagation()">
+    <div class="modal-title">📊 Yardımcı Veri Yükle</div>
+    <div class="modal-desc">${rows.length} satır — <b>${sys.name}</b> sistemine parça numarası üzerinden eşleştirilecek</div>
+    <div class="field" style="margin-top:14px">
+      <label class="field-label">Eşleştirme Sütunu (Stok / Parça No)</label>
+      <select class="field-input" id="aux-key-col" onchange="document.querySelector('.aux-col-chk[value='+this.value+']')&&(document.querySelector('.aux-col-chk[value='+this.value+']').closest('label').style.display='none')">${colOpts}</select>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label class="field-label" style="display:flex;justify-content:space-between"><span>İçe Alınacak Sütunlar</span>
+        <span style="font-weight:400;cursor:pointer;color:var(--ac2)" onclick="document.querySelectorAll('.aux-col-chk').forEach(c=>c.checked=true)">Tümünü Seç</span></label>
+      <div style="background:var(--sf);border:1px solid var(--brd);border-radius:var(--rs);padding:6px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:1px">
+        ${checkboxHtml}
+      </div>
+    </div>
+    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="processAuxData()">Yükle</button></div>
+  </div></div>`;
+  window._auxData={headers,rows};
+  window._auxSysId=sys.id;
+}
+
+async function processAuxData(){
+  const sys=S.systems.find(s=>s.id===window._auxSysId);
+  if(!sys||!window._auxData){toast("Veri bulunamadı","error");return;}
+  const {headers,rows}=window._auxData;
+  const keyColIdx=parseInt(document.getElementById('aux-key-col').value);
+  const checkedCols=Array.from(document.querySelectorAll('.aux-col-chk:checked')).map(c=>parseInt(c.value));
+  if(!checkedCols.length){toast("En az bir sütun seçin","error");return;}
+  const colNames=checkedCols.map(i=>(headers[i]||'Col'+i).toString());
+  // Harita: stok no → satır
+  const auxMap={};
+  for(const row of rows){
+    const key=String(row[keyColIdx]??'').trim();
+    if(key) auxMap[key]=row;
+  }
+  // Tüm node'ları gez, partNo üzerinden eşleştir
+  let matched=0,total=0;
+  function walk(nodes){
+    for(const node of nodes){
+      total++;
+      const pn=String(node.partNo||'').trim();
+      if(pn&&auxMap[pn]){
+        if(!node._extra)node._extra={};
+        const row=auxMap[pn];
+        checkedCols.forEach((ci,ii)=>{node._extra[colNames[ii]]=String(row[ci]??'');});
+        matched++;
+      }
+      if(node.children?.length)walk(node.children);
+    }
+  }
+  walk(sys.children);
+  // _extraCols güncelle
+  if(!sys._extraCols)sys._extraCols=[];
+  for(const col of colNames){if(!sys._extraCols.includes(col))sys._extraCols.push(col);}
+  await persist();closeModal();renderTab();
+  toast(`${matched}/${total} parça eşleşti — ${colNames.length} sütun eklendi`);
+}
 
 // ── EXCEL IMPORT ──
 async function importExcel(){
@@ -3201,16 +3299,128 @@ const BT_OVERSCAN = 10;
 const BT_DEPTH_COLORS = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6'];
 
 function _btGetCols(sys) {
-  // Fixed cols always shown
+  const hidden = S.bomTableHiddenCols||new Set();
   const fixed = [
-    { key:'depth',  label:'Lvl',      w:'60px',  align:'left'  },
-    { key:'name',   label:'Parça Adı', w:'auto',  align:'left'  },
-    { key:'partNo', label:'Parça No',  w:'160px', align:'left'  },
-    { key:'qty',    label:'Adet',      w:'60px',  align:'right' },
-  ];
-  // Dynamic extra cols from import
-  const extra = (sys._extraCols||[]).map(c=>({ key:'_x_'+c, label:c, w:'140px', align:'left', extraName:c }));
+    { key:'depth',  label:'Lvl',      w:'54px',  align:'left',  fixed:true },
+    { key:'name',   label:'Parça Adı', w:'260px', align:'left',  fixed:true },
+    { key:'partNo', label:'Parça No',  w:'150px', align:'left',  fixed:true },
+    { key:'qty',    label:'Adet',      w:'56px',  align:'right', fixed:true },
+  ].filter(c=>!hidden.has(c.key));
+  const extra = (sys._extraCols||[])
+    .filter(c=>!hidden.has('_x_'+c))
+    .map(c=>{
+      const w = Math.max(100, Math.min(220, c.length * 8 + 24)) + 'px';
+      return { key:'_x_'+c, label:c, w, align:'left', extraName:c };
+    });
   return [...fixed, ...extra];
+}
+
+// ── Sütun panel ──
+function _btToggleColPanel(e){
+  if(e) e.stopPropagation();
+  const panel=document.getElementById('btColPanel');
+  if(!panel) return;
+  const btn=document.getElementById('btColBtn');
+  if(panel.style.display==='none'||!panel.style.display){
+    // Pozisyon: butonun altına hizala
+    const rect=btn.getBoundingClientRect();
+    panel.style.display='flex';
+    panel.style.top=(rect.bottom+4)+'px';
+    panel.style.left=rect.left+'px';
+    _btRenderColList('');
+    setTimeout(()=>{
+      document.getElementById('btColSearch')?.focus();
+      document.addEventListener('mousedown',_btPanelOutsideClick,{once:true});
+    },0);
+  } else {
+    panel.style.display='none';
+  }
+}
+function _btPanelOutsideClick(e){
+  const panel=document.getElementById('btColPanel');
+  if(panel&&!panel.contains(e.target)&&e.target.id!=='btColBtn'){
+    panel.style.display='none';
+  } else if(panel&&panel.style.display!=='none'){
+    document.addEventListener('mousedown',_btPanelOutsideClick,{once:true});
+  }
+}
+function _btRenderColList(filter){
+  const list=document.getElementById('btColList'); if(!list) return;
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const hidden=S.bomTableHiddenCols||new Set();
+  const q=(filter||'').toLowerCase();
+  const allCols=[
+    {key:'depth', label:'Lvl', fixed:true},
+    {key:'name',  label:'Parça Adı', fixed:true},
+    {key:'partNo',label:'Parça No',  fixed:true},
+    {key:'qty',   label:'Adet',      fixed:true},
+    ...(sys._extraCols||[]).map(c=>({key:'_x_'+c, label:c, fixed:false}))
+  ].filter(c=>!q||c.label.toLowerCase().includes(q));
+
+  list.innerHTML=allCols.map(c=>{
+    const vis=!hidden.has(c.key);
+    const fixedBadge=c.fixed?`<span style="font-size:9px;color:var(--tx4);margin-left:4px">sabit</span>`:'';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:5px;cursor:pointer;transition:background .1s"
+      onmouseover="this.style.background='var(--sf2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" ${vis?'checked':''} ${c.fixed?'':''}
+        style="accent-color:var(--ac);cursor:pointer;flex-shrink:0"
+        onchange="_btToggleCol('${c.key}',this.checked)" ${c.fixed?'title="Sabit sütun — gizleyebilirsiniz"':''}>
+      <span style="flex:1;font-size:11px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.label}">${c.label}${fixedBadge}</span>
+      <button onclick="_btScrollToCol('${c.key}')" title="Bu sütuna git"
+        style="flex-shrink:0;padding:2px 7px;border-radius:4px;border:1px solid var(--brd);background:var(--sf);color:var(--ac2);font-size:10px;cursor:pointer">→</button>
+    </div>`;
+  }).join('');
+  if(!allCols.length) list.innerHTML=`<div style="padding:8px;color:var(--tx4);font-size:11px;text-align:center">Eşleşen sütun yok</div>`;
+}
+function _btColSearchInput(val){ _btRenderColList(val); }
+function _btColSearchKey(e){
+  if(e.key==='Escape'){document.getElementById('btColPanel').style.display='none';}
+}
+function _btToggleCol(key, vis){
+  if(!S.bomTableHiddenCols) S.bomTableHiddenCols=new Set();
+  if(vis) S.bomTableHiddenCols.delete(key);
+  else S.bomTableHiddenCols.add(key);
+  renderToolbar(); renderTab();
+  // Paneli yeniden aç
+  setTimeout(()=>{
+    const panel=document.getElementById('btColPanel');
+    if(panel){
+      panel.style.display='flex';
+      const q=document.getElementById('btColSearch')?.value||'';
+      _btRenderColList(q);
+      document.addEventListener('mousedown',_btPanelOutsideClick,{once:true});
+    }
+  },0);
+}
+function _btShowAllCols(){
+  S.bomTableHiddenCols=new Set();
+  renderToolbar(); renderTab();
+  setTimeout(()=>{
+    const panel=document.getElementById('btColPanel');
+    if(panel){panel.style.display='flex';_btRenderColList('');document.addEventListener('mousedown',_btPanelOutsideClick,{once:true});}
+  },0);
+}
+function _btHideExtraCols(){
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  if(!S.bomTableHiddenCols) S.bomTableHiddenCols=new Set();
+  (sys._extraCols||[]).forEach(c=>S.bomTableHiddenCols.add('_x_'+c));
+  renderToolbar(); renderTab();
+  setTimeout(()=>{
+    const panel=document.getElementById('btColPanel');
+    if(panel){panel.style.display='flex';_btRenderColList('');document.addEventListener('mousedown',_btPanelOutsideClick,{once:true});}
+  },0);
+}
+function _btScrollToCol(key){
+  const scroller=document.getElementById('btScroll'); if(!scroller) return;
+  // th'yi bul: id'si yok ama sırayla eşleştir
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const cols=_btGetCols(sys);
+  const idx=cols.findIndex(c=>c.key===key); if(idx<0){_btToggleCol(key,true);return;}
+  const ths=document.querySelectorAll('#btHead th');
+  if(ths[idx]) ths[idx].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  // Kısa highlight efekti
+  const th=ths[idx];
+  if(th){th.style.background='rgba(99,102,241,.3)';setTimeout(()=>{th.style.background='';},800);}
 }
 
 function renderBomTable(container) {
@@ -3230,27 +3440,28 @@ function renderBomTable(container) {
   _btApplyFilter();
 
   const cols = _btGetCols(sys);
-  const thStyle = 'padding:7px 10px;text-align:left;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;white-space:nowrap;user-select:none;background:var(--bg2)';
+  const N = cols.length;
+  const thBase = 'padding:0;color:var(--tx3);font-weight:600;border-bottom:1px solid var(--brd);cursor:pointer;user-select:none;background:var(--bg2);overflow:hidden';
+  const thInner = 'padding:7px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:flex;align-items:center;gap:4px';
   const fiStyle = 'width:100%;padding:3px 6px;background:var(--sf);border:1px solid var(--brd);border-radius:4px;color:var(--tx);font-size:10px;font-family:inherit;outline:none;box-sizing:border-box';
 
-  const headRow = cols.map(c=>`<th style="${thStyle};width:${c.w};text-align:${c.align}" onclick="sortBomTable('${c.key}')">${c.label} <span style="opacity:.5" id="bts-${c.key}"></span></th>`).join('');
-  const filterRow = cols.map(c=>`<td style="padding:3px 6px;background:var(--bg2);border-bottom:2px solid var(--brd)"><input style="${fiStyle}" placeholder="Filtrele..." oninput="btColFilter('${c.key}',this.value)" value="${(S.bomTableColFilters[c.key]||'').replace(/"/g,'&quot;')}"></td>`).join('');
+  const colgroupHtml = `<colgroup>${cols.map(c=>`<col style="width:${c.w};min-width:${c.w}">`).join('')}</colgroup>`;
+  const headRow = cols.map(c=>`<th style="${thBase};text-align:${c.align}" onclick="sortBomTable('${c.key}')"><div style="${thInner};justify-content:${c.align==='right'?'flex-end':'flex-start'}" title="${c.label}"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.label}</span><span style="opacity:.5;flex-shrink:0" id="bts-${c.key}"></span></div></th>`).join('');
+  const filterRow = cols.map(c=>`<td style="padding:3px 6px;background:var(--bg2);border-bottom:2px solid var(--brd);overflow:hidden"><input style="${fiStyle}" placeholder="Filtrele..." oninput="btColFilter('${c.key}',this.value)" value="${(S.bomTableColFilters[c.key]||'').replace(/"/g,'&quot;')}"></td>`).join('');
 
-  container.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;overflow:hidden">
-    <table id="btHeadTable" style="width:100%;border-collapse:collapse;font-size:11px;flex-shrink:0;table-layout:fixed">
-      <thead>
+  // Tek tablo: thead sticky + tbody sanal kaydırma (üst/alt spacer satırı)
+  container.innerHTML = `<div id="btScroll" style="height:100%;overflow:auto" onscroll="_btOnScroll()">
+    <table id="btTable" style="border-collapse:collapse;font-size:11px;table-layout:fixed;min-width:max-content;width:100%">
+      ${colgroupHtml}
+      <thead id="btHead" style="position:sticky;top:0;z-index:10">
         <tr>${headRow}</tr>
         <tr id="btFilterRow">${filterRow}</tr>
       </thead>
+      <tbody id="btBody">
+        <tr id="btTopSpacer" style="height:0px"><td colspan="${N}" style="padding:0;border:none"></td></tr>
+        <tr id="btBotSpacer" style="height:0px"><td colspan="${N}" style="padding:0;border:none"></td></tr>
+      </tbody>
     </table>
-    <div id="btScroll" style="flex:1;overflow-y:auto;overflow-x:auto;position:relative" onscroll="_btOnScroll()">
-      <div id="btSpacer" style="position:relative;width:100%">
-        <table id="btTable" style="width:100%;border-collapse:collapse;font-size:11px;position:absolute;top:0;left:0;right:0;table-layout:fixed">
-          <colgroup>${cols.map(c=>`<col style="width:${c.w}">`).join('')}</colgroup>
-          <tbody id="btBody"></tbody>
-        </table>
-      </div>
-    </div>
   </div>`;
 
   _btRenderViewport();
@@ -3285,23 +3496,28 @@ function _btApplyFilter() {
 }
 
 function _btRenderViewport() {
-  const scroller = document.getElementById('btScroll');
-  const spacer   = document.getElementById('btSpacer');
-  const tbody    = document.getElementById('btBody');
-  const table    = document.getElementById('btTable');
-  if (!scroller||!spacer||!tbody) return;
+  const scroller   = document.getElementById('btScroll');
+  const topSpacer  = document.getElementById('btTopSpacer');
+  const botSpacer  = document.getElementById('btBotSpacer');
+  const tbody      = document.getElementById('btBody');
+  if (!scroller||!topSpacer||!botSpacer||!tbody) return;
 
   const sys = S.systems.find(s=>s.id===S.selSys); if(!sys) return;
   const cols = _btGetCols(sys);
   const rows = S.bomTableFiltered;
   const total = rows.length;
-  spacer.style.height = (total * BT_ROW_H) + 'px';
 
-  const scrollTop = scroller.scrollTop;
-  const viewH = scroller.clientHeight || 600;
+  // Thead yüksekliğini hesaba kat (sticky)
+  const head = document.getElementById('btHead');
+  const headH = head ? head.offsetHeight : 58;
+  const scrollTop = Math.max(0, scroller.scrollTop - headH);
+  const viewH = (scroller.clientHeight || 600) - headH;
+
   const first = Math.max(0, Math.floor(scrollTop/BT_ROW_H) - BT_OVERSCAN);
   const last  = Math.min(total-1, Math.ceil((scrollTop+viewH)/BT_ROW_H) + BT_OVERSCAN);
-  table.style.top = (first * BT_ROW_H) + 'px';
+
+  topSpacer.style.height = (first * BT_ROW_H) + 'px';
+  botSpacer.style.height = (Math.max(0, total - last - 1) * BT_ROW_H) + 'px';
 
   let html = '';
   for (let i = first; i <= last; i++) {
@@ -3326,7 +3542,11 @@ function _btRenderViewport() {
     }
     html += `</tr>`;
   }
-  tbody.innerHTML = html;
+
+  // Önceki render'dan kalan satırları temizle (spacer'lar hariç)
+  tbody.querySelectorAll('tr:not(#btTopSpacer):not(#btBotSpacer)').forEach(tr => tr.remove());
+  // Yeni satırları topSpacer'ın hemen arkasına ekle
+  topSpacer.insertAdjacentHTML('afterend', html);
 }
 
 function _btOnScroll() { _btRenderViewport(); }

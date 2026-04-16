@@ -1,5 +1,9 @@
 # BOM Manager — Geliştirici Kuralları
 
+## Mevcut Versiyon
+
+**v2.8.0** — Proje dizini: `D:\proje\BOM\v2.1\bom-manager`
+
 ## Uygulamayı Çalıştırma
 
 `ELECTRON_RUN_AS_NODE` ortam değişkeni sisteme kalıcı set edilmiş olabilir.
@@ -22,8 +26,8 @@ start.bat
 ## Versiyon Kuralları
 
 - Her yeni özellik veya düzeltmede `package.json` içindeki `version` alanını artır
-- CHANGELOG varsa aynı committe güncelle
 - Commit mesajı: `feat: açıklama — vX.X.X` veya `fix: açıklama — vX.X.X`
+- CLAUDE.md içindeki "Mevcut Versiyon" satırını da güncelle
 
 ## Git
 
