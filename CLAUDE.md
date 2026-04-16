@@ -2,7 +2,7 @@
 
 ## Mevcut Versiyon
 
-**v2.8.0** — Proje dizini: `D:\proje\BOM\v2.1\bom-manager`
+**v2.10.0** — Proje dizini: `D:\proje\BOM\v2.8\bom-manager`
 
 ## Uygulamayı Çalıştırma
 
@@ -12,12 +12,12 @@ Doğrudan `electron.exe .` çalıştırırsan `TypeError: Cannot read properties
 **Her zaman şu PowerShell komutuyla çalıştır:**
 
 ```powershell
-powershell -Command "$env:ELECTRON_RUN_AS_NODE = ''; Start-Process -FilePath 'D:\proje\BOM\v2.1\bom-manager\node_modules\electron\dist\electron.exe' -ArgumentList '.' -WorkingDirectory 'D:\proje\BOM\v2.1\bom-manager'"
+powershell -Command "$env:ELECTRON_RUN_AS_NODE = ''; Start-Process -FilePath 'D:\proje\BOM\v2.8\bom-manager\node_modules\electron\dist\electron.exe' -ArgumentList '.' -WorkingDirectory 'D:\proje\BOM\v2.8\bom-manager'"
 ```
 
 Ya da `start.bat` ile:
 ```
-cd /d D:\proje\BOM\v2.1\bom-manager
+cd /d D:\proje\BOM\v2.8\bom-manager
 start.bat
 ```
 

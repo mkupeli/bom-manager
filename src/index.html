@@ -551,6 +551,11 @@ function renderToolbar(){
           </div>
         </div>
       </div>
+      <div class="tool-sep"></div>
+      <div style="position:relative">
+        <button class="tool-btn ${S.bomTableAnalysisCol?'active':''}" onclick="_btToggleAnalysisPanel(event)" id="btAnalBtn">🔍 Analiz${S.bomTableAnalysisCol?` <span style="font-size:9px;opacity:.8">${(S.systems.find(s=>s.id===S.selSys)?._extraCols||[]).find(c=>'_x_'+c===S.bomTableAnalysisCol)||''}</span>`:''}</button>
+        <div id="btAnalPanel" style="display:none;position:fixed;z-index:200;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,.6);padding:10px;flex-direction:column;gap:8px"></div>
+      </div>
       <div class="tool-spacer"></div>
       <button class="tool-btn" onclick="importAuxData()" title="Stok no eşleştirmeli yardımcı veri yükle">📊 Durum Yükle</button>
       <button class="tool-btn" onclick="exportBomTableCSV()">⬇ CSV İndir</button>`;
@@ -3412,15 +3417,254 @@ function _btHideExtraCols(){
 }
 function _btScrollToCol(key){
   const scroller=document.getElementById('btScroll'); if(!scroller) return;
-  // th'yi bul: id'si yok ama sırayla eşleştir
   const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
   const cols=_btGetCols(sys);
   const idx=cols.findIndex(c=>c.key===key); if(idx<0){_btToggleCol(key,true);return;}
   const ths=document.querySelectorAll('#btHead th');
   if(ths[idx]) ths[idx].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
-  // Kısa highlight efekti
   const th=ths[idx];
   if(th){th.style.background='rgba(99,102,241,.3)';setTimeout(()=>{th.style.background='';},800);}
+}
+
+// ═══════ ANALİZ PANELİ ═══════
+const _BT_ANAL_PALETTE=[
+  '#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6',
+  '#ef4444','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7',
+  '#e11d48','#0ea5e9','#d97706','#65a30d'
+];
+S.bomTableAnalysisCol=S.bomTableAnalysisCol||null;
+S.bomTableAnalysisColors=S.bomTableAnalysisColors||{};
+
+function _btToggleAnalysisPanel(e){
+  if(e) e.stopPropagation();
+  const panel=document.getElementById('btAnalPanel'); if(!panel) return;
+  const btn=document.getElementById('btAnalBtn');
+  if(panel.style.display==='none'||!panel.style.display){
+    const rect=btn.getBoundingClientRect();
+    panel.style.display='flex';
+    panel.style.top=(rect.bottom+4)+'px';
+    panel.style.right=(window.innerWidth-rect.right)+'px';
+    panel.style.left='auto';
+    _btRenderAnalysisPanel();
+    setTimeout(()=>document.addEventListener('mousedown',_btAnalOutsideClick,{once:true}),0);
+  } else {
+    panel.style.display='none';
+  }
+}
+function _btAnalOutsideClick(e){
+  const panel=document.getElementById('btAnalPanel');
+  if(panel&&!panel.contains(e.target)&&e.target.id!=='btAnalBtn'&&!e.target.closest('#btAnalBtn')){
+    panel.style.display='none';
+  } else if(panel&&panel.style.display!=='none'){
+    document.addEventListener('mousedown',_btAnalOutsideClick,{once:true});
+  }
+}
+
+function _btRenderAnalysisPanel(){
+  const panel=document.getElementById('btAnalPanel'); if(!panel) return;
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const extraCols=sys._extraCols||[];
+  if(!extraCols.length){
+    panel.innerHTML=`<div style="color:var(--tx3);font-size:11px;padding:4px">Önce yardımcı veri yükleyin (📊 Durum Yükle)</div>`;
+    return;
+  }
+  const colOpts=extraCols.map(c=>`<option value="_x_${c}" ${S.bomTableAnalysisCol==='_x_'+c?'selected':''}>${c}</option>`).join('');
+  panel.innerHTML=`
+    <div style="display:flex;align-items:center;gap:6px">
+      <select class="field-input" id="btAnalColSel" style="flex:1;font-size:11px;padding:5px 8px" onchange="_btSetAnalysisCol(this.value)">
+        <option value="">— Sütun seçin —</option>${colOpts}
+      </select>
+      ${S.bomTableAnalysisCol?`<button class="tool-btn" onclick="_btClearAnalysis()" title="Analizi temizle" style="padding:4px 8px;color:var(--err)">✕</button>`:''}
+    </div>
+    <div id="btAnalBody" style="margin-top:4px"></div>`;
+  if(S.bomTableAnalysisCol) _btRunAnalysis(S.bomTableAnalysisCol);
+}
+
+function _btSetAnalysisCol(key){
+  S.bomTableAnalysisCol=key||null;
+  S.bomTableAnalysisColors={};
+  // Toolbar'ı güncelle (buton badge için) ama panel'i kapat/aç ile koru
+  renderToolbar();
+  renderTab();
+  if(key){
+    setTimeout(()=>{
+      const panel=document.getElementById('btAnalPanel');
+      const btn=document.getElementById('btAnalBtn');
+      if(panel&&btn){
+        const rect=btn.getBoundingClientRect();
+        panel.style.display='flex';
+        panel.style.top=(rect.bottom+4)+'px';
+        panel.style.right=(window.innerWidth-rect.right)+'px';
+        panel.style.left='auto';
+        _btRenderAnalysisPanel();
+        document.addEventListener('mousedown',_btAnalOutsideClick,{once:true});
+      }
+    },0);
+  }
+}
+
+function _btClearAnalysis(){
+  S.bomTableAnalysisCol=null;
+  S.bomTableAnalysisColors={};
+  renderToolbar();
+  renderTab();
+  setTimeout(()=>{
+    const panel=document.getElementById('btAnalPanel');
+    if(panel) panel.style.display='none';
+  },0);
+}
+
+function _btRunAnalysis(colKey){
+  const sys=S.systems.find(s=>s.id===S.selSys); if(!sys) return;
+  const extraName=colKey.startsWith('_x_')?colKey.slice(3):colKey;
+
+  // Tüm satırlarda (filtresiz) değer dağılımı hesapla
+  const counts={};
+  for(const r of (S.bomTableRows||[])){
+    const val=String(r._extra?.[extraName]??'').trim()||'(boş)';
+    counts[val]=(counts[val]||0)+1;
+  }
+  // Sırala: çoktan aza
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const total=sorted.reduce((s,[,v])=>s+v,0);
+
+  // Renk ataması
+  sorted.forEach(([val],i)=>{
+    if(!S.bomTableAnalysisColors[val])
+      S.bomTableAnalysisColors[val]=_BT_ANAL_PALETTE[i%_BT_ANAL_PALETTE.length];
+  });
+
+  // Tabloyu yeniden render et (renk kodlama için)
+  _btRenderViewport();
+
+  // Panel body'yi güncelle
+  const body=document.getElementById('btAnalBody'); if(!body) return;
+  const maxCount=sorted[0]?.[1]||1;
+  body.innerHTML=`
+    <div style="font-size:9px;color:var(--tx3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px">${extraName} — ${sorted.length} farklı değer, ${total} parça</div>
+    <div style="display:flex;flex-direction:column;gap:3px;max-height:360px;overflow-y:auto">
+      ${sorted.map(([val,cnt])=>{
+        const pct=Math.round(cnt/total*100);
+        const barW=Math.round(cnt/maxCount*100);
+        const color=S.bomTableAnalysisColors[val];
+        const isActive=S.bomTableAnalysisFilter?.col===colKey&&S.bomTableAnalysisFilter?.val===val;
+        return `<div style="cursor:pointer;border-radius:5px;padding:4px 6px;transition:background .1s;${isActive?'background:var(--sf2);outline:1px solid '+color:''}"
+          onclick="_btAnalFilterVal('${colKey}','${val.replace(/'/g,"\\'")}')"
+          onmouseover="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${isActive?'var(--sf2)':''}'"
+          title="Tıkla: bu değere göre filtrele">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span style="width:10px;height:10px;border-radius:3px;background:${color};flex-shrink:0;display:inline-block"></span>
+            <span style="flex:1;font-size:11px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${val}</span>
+            <span style="font-size:10px;color:var(--tx3);font-family:'JetBrains Mono',monospace;flex-shrink:0">${cnt} <span style="color:var(--tx4)">(${pct}%)</span></span>
+          </div>
+          <div style="height:4px;background:var(--sf3);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${barW}%;background:${color};border-radius:2px;transition:width .3s"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${S.bomTableAnalysisFilter?`<button class="tool-btn" style="margin-top:6px;width:100%;justify-content:center;color:var(--warn)" onclick="_btClearAnalysisFilter()">✕ Filtreyi Temizle</button>`:''}`;
+}
+
+function _btAnalFilterVal(colKey, val){
+  // Aynı değere tekrar tıklanırsa filtreyi kaldır (toggle)
+  if(S.bomTableAnalysisFilter?.col===colKey && S.bomTableAnalysisFilter?.val===val){
+    S.bomTableAnalysisFilter=null;
+  } else {
+    S.bomTableAnalysisFilter={col:colKey, val};
+  }
+  _btApplyFilter();
+  const scroller=document.getElementById('btScroll');
+  if(scroller) scroller.scrollTop=0;
+  _btRenderViewport();
+  updateBomTableInfo();
+  _btRunAnalysis(colKey);
+}
+
+function _btClearAnalysisFilter(){
+  S.bomTableAnalysisFilter=null;
+  _btApplyFilter();
+  const scroller=document.getElementById('btScroll');
+  if(scroller) scroller.scrollTop=0;
+  _btRenderViewport();
+  updateBomTableInfo();
+  if(S.bomTableAnalysisCol) _btRunAnalysis(S.bomTableAnalysisCol);
+}
+
+// ── Ancestor breadcrumb popup ──
+function _btCopyVal(btn, idx){
+  const val = (window._btCopyVals||[])[idx];
+  if(!val) return;
+  const ta = document.createElement('textarea');
+  ta.value = val;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  ta.remove();
+  btn.textContent = '✓';
+  setTimeout(()=>{ btn.textContent = '⎘'; }, 1200);
+}
+
+function _btShowAncestors(e, rowIdx){
+  // Analiz paneli veya sütun paneli tıklamasıyla çakışmasın
+  if(e.target.closest('#btAnalPanel,#btColPanel,input,button,select')) return;
+  document.getElementById('btAncestorPopup')?.remove();
+
+  const row = S.bomTableFiltered?.[rowIdx]; if(!row) return;
+  const ancestors = row.ancestors||[];
+
+  function copyBtn(val){
+    if(!val) return '';
+    const idx = (_btCopyVals = _btCopyVals||[]).push(val) - 1;
+    return `<button onclick="event.stopPropagation();_btCopyVal(this,${idx})"
+      title="Kopyala" style="background:var(--sf2);border:1px solid var(--brd);border-radius:4px;color:var(--tx3);font-size:11px;cursor:pointer;padding:1px 5px;flex-shrink:0;line-height:1.4">⎘</button>`;
+  }
+  window._btCopyVals = [];
+
+  const crumbs = ancestors.map(a=>
+    `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;background:var(--sf)">
+      <span style="font-size:11px;color:var(--tx);font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</span>
+      ${a.partNo?`<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ac2);flex-shrink:0">${a.partNo}</span>`:''}
+      ${copyBtn(a.partNo||a.name)}
+    </div>
+    <div style="padding-left:16px;color:var(--tx4);font-size:14px;line-height:1">↓</div>`
+  ).join('');
+
+  const popup = document.createElement('div');
+  popup.id = 'btAncestorPopup';
+  popup.style.cssText = `position:fixed;z-index:300;background:var(--bg2);border:1px solid var(--brd);
+    border-radius:10px;padding:10px;min-width:260px;max-width:380px;
+    box-shadow:0 8px 32px rgba(0,0,0,.6);`;
+
+  popup.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx3);font-weight:600">Üst Hiyerarşi</span>
+    </div>
+    ${crumbs}
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);margin-top:2px">
+      <span style="font-size:11px;color:var(--ac3);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">▶ ${row.name}</span>
+      ${row.partNo?`<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ac2);flex-shrink:0">${row.partNo}</span>`:''}
+      ${copyBtn(row.partNo||row.name)}
+    </div>`;
+
+  // Popup konumu: tıklanan noktanın yanına
+  document.body.appendChild(popup);
+  const pw = popup.offsetWidth, ph = popup.offsetHeight;
+  let x = e.clientX + 12, y = e.clientY - 20;
+  if(x + pw > window.innerWidth - 10) x = e.clientX - pw - 12;
+  if(y + ph > window.innerHeight - 10) y = window.innerHeight - ph - 10;
+  popup.style.left = x + 'px';
+  popup.style.top  = y + 'px';
+
+  // Popup dışına tıklayınca kapat (içindeki butonlar çalışsın diye popup içini atla)
+  function _btAncestorClose(ev){
+    if(!ev.target.closest('#btAncestorPopup')){
+      document.getElementById('btAncestorPopup')?.remove();
+      document.removeEventListener('mousedown', _btAncestorClose);
+    }
+  }
+  setTimeout(()=>document.addEventListener('mousedown', _btAncestorClose), 0);
 }
 
 function renderBomTable(container) {
@@ -3428,13 +3672,13 @@ function renderBomTable(container) {
   S.bomTableColFilters = {};
 
   const flat = [];
-  function walk(nodes, depth) {
+  function walk(nodes, depth, ancestors) {
     for (const n of nodes) {
-      flat.push({ depth, name: n.name||'', partNo: n.partNo||'', qty: n.qty||1, _extra: n._extra||{} });
-      if (n.children?.length) walk(n.children, depth+1);
+      flat.push({ depth, name: n.name||'', partNo: n.partNo||'', qty: n.qty||1, _extra: n._extra||{}, ancestors });
+      if (n.children?.length) walk(n.children, depth+1, [...ancestors, {name: n.name||'', partNo: n.partNo||''}]);
     }
   }
-  walk(sys.children, 0);
+  walk(sys.children, 0, [{name: sys.name, partNo: sys.serialNo||''}]);
   S.bomTableRows = flat;
   S.bomTableSort = { col: 'depth', dir: 1 };
   _btApplyFilter();
@@ -3471,10 +3715,19 @@ function renderBomTable(container) {
 
 function _btApplyFilter() {
   const cf = S.bomTableColFilters||{};
+  const af = S.bomTableAnalysisFilter||null; // {col, val} — tam eşleşme
   const sys = S.systems.find(s=>s.id===S.selSys);
   const cols = sys ? _btGetCols(sys) : [];
 
   let rows = S.bomTableRows.filter(r => {
+    // 1) Analiz filtresi — tam eşleşme
+    if(af?.col && af?.val!==null){
+      const c=cols.find(c=>c.key===af.col);
+      const cv=c?.extraName ? String(r._extra[c.extraName]??'').trim() : String(r[af.col]??'').trim();
+      if(af.val==='(boş)'){ if(cv!=='') return false; }
+      else { if(cv!==af.val) return false; }
+    }
+    // 2) Metin filtreleri — içerir (substring)
     for (const c of cols) {
       const fv = (cf[c.key]||'').toLowerCase(); if (!fv) continue;
       const cv = c.extraName ? (r._extra[c.extraName]||'') : String(r[c.key]??'');
@@ -3524,7 +3777,7 @@ function _btRenderViewport() {
     const r = rows[i];
     const dc = BT_DEPTH_COLORS[r.depth % BT_DEPTH_COLORS.length];
     const bg = i%2===0 ? 'transparent' : 'var(--sf)';
-    html += `<tr style="height:${BT_ROW_H}px;background:${bg}" onmouseenter="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${bg}'">`;
+    html += `<tr style="height:${BT_ROW_H}px;background:${bg};cursor:pointer" onmouseenter="this.style.background='var(--sf2)'" onmouseleave="this.style.background='${bg}'" onclick="_btShowAncestors(event,${i})">`;
     for (const c of cols) {
       let cell;
       if (c.key==='depth') {
@@ -3536,9 +3789,18 @@ function _btRenderViewport() {
       } else if (c.key==='qty') {
         cell = `<span style="font-family:'JetBrains Mono',monospace;color:var(--warn)">×${r.qty}</span>`;
       } else if (c.extraName) {
-        cell = `<span style="color:var(--tx2)">${r._extra[c.extraName]||'—'}</span>`;
+        const rawVal=String(r._extra[c.extraName]??'').trim();
+        const dispVal=rawVal||'—';
+        const isAnalCol=(S.bomTableAnalysisCol===c.key);
+        const aColor=isAnalCol?(S.bomTableAnalysisColors[rawVal||'(boş)']||null):null;
+        cell=aColor
+          ? `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:2px;background:${aColor};flex-shrink:0"></span><span style="color:var(--tx)">${dispVal}</span></span>`
+          : `<span style="color:var(--tx2)">${dispVal}</span>`;
       } else { cell = ''; }
-      html += `<td style="padding:0 10px;border-bottom:1px solid var(--brd);text-align:${c.align};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${cell}</td>`;
+      const isAnalCol=(c.extraName&&S.bomTableAnalysisCol===c.key);
+      const aColor=isAnalCol?(S.bomTableAnalysisColors[String(r._extra[c.extraName]??'').trim()||'(boş)']||null):null;
+      const cellBg=aColor?`background:${aColor}18;`:'';
+      html += `<td style="padding:0 10px;border-bottom:1px solid var(--brd);text-align:${c.align};overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${cellBg}">${cell}</td>`;
     }
     html += `</tr>`;
   }
