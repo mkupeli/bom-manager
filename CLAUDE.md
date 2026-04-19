@@ -12,16 +12,26 @@ Doğrudan `electron.exe .` çalıştırırsan `TypeError: Cannot read properties
 **Her zaman şu PowerShell komutuyla çalıştır:**
 
 ```powershell
-powershell -Command "$env:ELECTRON_RUN_AS_NODE = ''; Start-Process -FilePath 'D:\proje\BOM\v2.8\bom-manager\node_modules\electron\dist\electron.exe' -ArgumentList '.' -WorkingDirectory 'D:\proje\BOM\v2.8\bom-manager'"
+powershell -Command "& { [System.Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE', '', 'Process'); Start-Process -FilePath 'D:\projeler\bom-manager\node_modules\electron\dist\electron.exe' -ArgumentList '.' -WorkingDirectory 'D:\projeler\bom-manager' }"
 ```
 
-Ya da `start.bat` ile:
+> **Not:** `$env:ELECTRON_RUN_AS_NODE = ''` sözdizimi bu sistemde çalışmıyor.  
+> `[System.Environment]::SetEnvironmentVariable(...)` kullan — bu kesin çalışan yöntemdir.
+
+Ya da `start.bat` ile (proje dizininden):
 ```
-cd /d D:\proje\BOM\v2.8\bom-manager
 start.bat
 ```
 
 `start.bat` içinde `set ELECTRON_RUN_AS_NODE=` ile değişken sıfırlanır.
+
+### Uygulama açılmıyorsa
+
+`cmd /c "set ELECTRON_RUN_AS_NODE= && start electron.exe ."` gibi yöntemler bu sistemde **çalışmayabilir** (ortam değişkeni alt prosese geçmiyor). Açılmadığında doğrudan şunu dene:
+
+```powershell
+powershell -Command "& { [System.Environment]::SetEnvironmentVariable('ELECTRON_RUN_AS_NODE', '', 'Process'); Start-Process -FilePath 'D:\projeler\bom-manager\node_modules\electron\dist\electron.exe' -ArgumentList '.' -WorkingDirectory 'D:\projeler\bom-manager' }"
+```
 
 ## Versiyon Kuralları
 
