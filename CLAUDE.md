@@ -2,7 +2,7 @@
 
 ## Mevcut Versiyon
 
-**v2.10.0** — Proje dizini: `D:\proje\BOM\v2.8\bom-manager`
+**v2.11.0** — Proje dizini: `D:\proje\BOM\v2.8\bom-manager`
 
 ## Uygulamayı Çalıştırma
 

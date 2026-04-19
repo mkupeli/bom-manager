@@ -312,65 +312,65 @@ select.field-input{cursor:pointer}
 let S = { systems:[], revisions:[], library:[], selSys:null, selNode:null, expanded:{}, tab:"tree", vizMode:"org", compareFilter:null, showLibrary:false, libSearch:'', libDragId:null };
 
 const DEFAULT_SYS = [
-  { id:"sys-001",name:"Çok Fonksiyonlu Radar Sistemi",type:"Radar",serialNo:"RDR-2026-A0147",status:"Aktif",icon:"📡",revision:"Rev-C",
+  { id:"sys-001",name:"Çok Fonksiyonlu Radar Sistemi",type:"Radar",status:"Aktif",icon:"📡",revision:"Rev-C",
     children:[
-      {id:"ant-001",name:"Anten Alt Sistemi",partNo:"ANT-400",serialNo:"ANT-S-00291",qty:1,jiraKey:"",children:[
-        {id:"ae-001",name:"T/R Modül",partNo:"TRM-110",serialNo:"TRM-B-10441",qty:64,jiraKey:"",children:[]},
-        {id:"ae-002",name:"Besleme Ağı",partNo:"FDN-220",serialNo:"FDN-C-00087",qty:1,jiraKey:"",children:[]},
-        {id:"ae-003",name:"Radome",partNo:"RDM-050",serialNo:"RDM-D-00034",qty:1,jiraKey:"",children:[]},
-        {id:"ae-004",name:"Pedestal",partNo:"PDS-300",serialNo:"PDS-E-00112",qty:1,jiraKey:"",children:[]},
+      {id:"ant-001",name:"Anten Alt Sistemi",partNo:"ANT-400",qty:1,children:[
+        {id:"ae-001",name:"T/R Modül",partNo:"TRM-110",qty:64,children:[]},
+        {id:"ae-002",name:"Besleme Ağı",partNo:"FDN-220",qty:1,children:[]},
+        {id:"ae-003",name:"Radome",partNo:"RDM-050",qty:1,children:[]},
+        {id:"ae-004",name:"Pedestal",partNo:"PDS-300",qty:1,children:[]},
       ]},
-      {id:"rcv-001",name:"Alıcı/Verici Alt Sistemi",partNo:"RCV-500",serialNo:"RCV-S-00183",qty:1,jiraKey:"",children:[
-        {id:"rc-001",name:"LNA",partNo:"LNA-010",serialNo:"LNA-F-20087",qty:4,jiraKey:"",children:[]},
-        {id:"rc-002",name:"SSPA",partNo:"SPA-020",serialNo:"SPA-G-15039",qty:4,jiraKey:"",children:[]},
-        {id:"rc-003",name:"Frekans Sentezleyici",partNo:"FSY-030",serialNo:"FSY-H-00441",qty:1,jiraKey:"",children:[]},
+      {id:"rcv-001",name:"Alıcı/Verici Alt Sistemi",partNo:"RCV-500",qty:1,children:[
+        {id:"rc-001",name:"LNA",partNo:"LNA-010",qty:4,children:[]},
+        {id:"rc-002",name:"SSPA",partNo:"SPA-020",qty:4,children:[]},
+        {id:"rc-003",name:"Frekans Sentezleyici",partNo:"FSY-030",qty:1,children:[]},
       ]},
-      {id:"sp-001",name:"Sinyal İşleme",partNo:"SPI-600",serialNo:"SPI-S-00074",qty:1,jiraKey:"",children:[
-        {id:"sp-011",name:"FPGA Kartı",partNo:"FPG-100",serialNo:"FPG-K-30112",qty:2,jiraKey:"",children:[]},
-        {id:"sp-012",name:"ADC/DAC",partNo:"ADC-200",serialNo:"ADC-L-40087",qty:4,jiraKey:"",children:[]},
-        {id:"sp-013",name:"DSP Modülü",partNo:"DSP-300",serialNo:"DSP-M-50034",qty:2,jiraKey:"",children:[]},
+      {id:"sp-001",name:"Sinyal İşleme",partNo:"SPI-600",qty:1,children:[
+        {id:"sp-011",name:"FPGA Kartı",partNo:"FPG-100",qty:2,children:[]},
+        {id:"sp-012",name:"ADC/DAC",partNo:"ADC-200",qty:4,children:[]},
+        {id:"sp-013",name:"DSP Modülü",partNo:"DSP-300",qty:2,children:[]},
       ]},
-      {id:"pw-001",name:"Güç Besleme",partNo:"PWR-700",serialNo:"PWR-S-00056",qty:1,jiraKey:"",children:[
-        {id:"pw-011",name:"AC/DC Konvertör",partNo:"ACD-010",serialNo:"ACD-N-60019",qty:2,jiraKey:"",children:[]},
-        {id:"pw-012",name:"UPS",partNo:"UPS-020",serialNo:"UPS-P-70023",qty:1,jiraKey:"",children:[]},
+      {id:"pw-001",name:"Güç Besleme",partNo:"PWR-700",qty:1,children:[
+        {id:"pw-011",name:"AC/DC Konvertör",partNo:"ACD-010",qty:2,children:[]},
+        {id:"pw-012",name:"UPS",partNo:"UPS-020",qty:1,children:[]},
       ]},
-      {id:"cc-001",name:"Komuta Kontrol",partNo:"KKK-800",serialNo:"KKK-S-00019",qty:1,jiraKey:"",children:[
-        {id:"cc-011",name:"Operatör Ekranı",partNo:"OPE-010",serialNo:"OPE-R-90014",qty:2,jiraKey:"",children:[]},
+      {id:"cc-001",name:"Komuta Kontrol",partNo:"KKK-800",qty:1,children:[
+        {id:"cc-011",name:"Operatör Ekranı",partNo:"OPE-010",qty:2,children:[]},
       ]},
     ]},
-  { id:"sys-002",name:"Elektronik Harp Sistemi",type:"EW",serialNo:"EHR-2026-B0063",status:"Üretimde",icon:"⚡",revision:"Rev-A",
+  { id:"sys-002",name:"Elektronik Harp Sistemi",type:"EW",status:"Üretimde",icon:"⚡",revision:"Rev-A",
     children:[
-      {id:"ew-det",name:"Tespit Alt Sistemi",partNo:"TES-100",serialNo:"TES-S-01122",qty:1,jiraKey:"",children:[
-        {id:"ew-d01",name:"Geniş Bant Alıcı",partNo:"GBA-010",serialNo:"GBA-A-11034",qty:2,jiraKey:"",children:[]},
-        {id:"ew-d02",name:"DF Anten Dizisi",partNo:"DFA-020",serialNo:"DFA-B-12098",qty:1,jiraKey:"",children:[]},
-        {id:"ew-d03",name:"DRFM",partNo:"DRF-030",serialNo:"DRF-C-13045",qty:1,jiraKey:"",children:[]},
+      {id:"ew-det",name:"Tespit Alt Sistemi",partNo:"TES-100",qty:1,children:[
+        {id:"ew-d01",name:"Geniş Bant Alıcı",partNo:"GBA-010",qty:2,children:[]},
+        {id:"ew-d02",name:"DF Anten Dizisi",partNo:"DFA-020",qty:1,children:[]},
+        {id:"ew-d03",name:"DRFM",partNo:"DRF-030",qty:1,children:[]},
       ]},
-      {id:"ew-jam",name:"Karıştırma",partNo:"KRS-200",serialNo:"KRS-S-02087",qty:1,jiraKey:"",children:[
-        {id:"ew-j01",name:"Karıştırıcı Verici",partNo:"KRV-010",serialNo:"KRV-D-21076",qty:2,jiraKey:"",children:[]},
-        {id:"ew-j02",name:"Karıştırma Anten",partNo:"KAG-020",serialNo:"KAG-E-22013",qty:1,jiraKey:"",children:[]},
+      {id:"ew-jam",name:"Karıştırma",partNo:"KRS-200",qty:1,children:[
+        {id:"ew-j01",name:"Karıştırıcı Verici",partNo:"KRV-010",qty:2,children:[]},
+        {id:"ew-j02",name:"Karıştırma Anten",partNo:"KAG-020",qty:1,children:[]},
       ]},
     ]},
-  { id:"sys-003",name:"Taktik Haberleşme Sistemi",type:"Haberleşme",serialNo:"THS-2026-C0215",status:"Test",icon:"🔗",revision:"Rev-B",
+  { id:"sys-003",name:"Taktik Haberleşme Sistemi",type:"Haberleşme",status:"Test",icon:"🔗",revision:"Rev-B",
     children:[
-      {id:"cm-rf",name:"RF Alt Sistemi",partNo:"RFS-100",serialNo:"RFS-S-05067",qty:1,jiraKey:"",children:[
-        {id:"cm-r01",name:"SDR Telsiz",partNo:"SDR-010",serialNo:"SDR-A-51034",qty:4,jiraKey:"",children:[]},
-        {id:"cm-r02",name:"Çok Bantlı Anten",partNo:"CBA-030",serialNo:"CBA-C-53012",qty:2,jiraKey:"",children:[]},
+      {id:"cm-rf",name:"RF Alt Sistemi",partNo:"RFS-100",qty:1,children:[
+        {id:"cm-r01",name:"SDR Telsiz",partNo:"SDR-010",qty:4,children:[]},
+        {id:"cm-r02",name:"Çok Bantlı Anten",partNo:"CBA-030",qty:2,children:[]},
       ]},
-      {id:"cm-net",name:"Ağ Yönetim",partNo:"AYB-200",serialNo:"AYB-S-06034",qty:1,jiraKey:"",children:[
-        {id:"cm-n01",name:"Kripto Modülü",partNo:"KRP-010",serialNo:"KRP-D-61098",qty:2,jiraKey:"",children:[]},
-        {id:"cm-n02",name:"Link 16 Terminali",partNo:"L16-030",serialNo:"L16-F-63021",qty:1,jiraKey:"",children:[]},
+      {id:"cm-net",name:"Ağ Yönetim",partNo:"AYB-200",qty:1,children:[
+        {id:"cm-n01",name:"Kripto Modülü",partNo:"KRP-010",qty:2,children:[]},
+        {id:"cm-n02",name:"Link 16 Terminali",partNo:"L16-030",qty:1,children:[]},
       ]},
     ]},
-  { id:"sys-004",name:"Elektro-Optik Sistem",type:"EO",serialNo:"EOS-2026-D0089",status:"Bakımda",icon:"🔭",revision:"Rev-A",
+  { id:"sys-004",name:"Elektro-Optik Sistem",type:"EO",status:"Bakımda",icon:"🔭",revision:"Rev-A",
     children:[
-      {id:"eo-sen",name:"Sensör Kafası",partNo:"SNK-100",serialNo:"SNK-S-08045",qty:1,jiraKey:"",children:[
-        {id:"eo-s01",name:"Termal Kamera",partNo:"TKM-010",serialNo:"TKM-A-81023",qty:1,jiraKey:"",children:[]},
-        {id:"eo-s02",name:"Gündüz Kamerası",partNo:"GKM-020",serialNo:"GKM-B-82067",qty:1,jiraKey:"",children:[]},
-        {id:"eo-s03",name:"Lazer Mesafe Ölçer",partNo:"LMO-030",serialNo:"LMO-C-83041",qty:1,jiraKey:"",children:[]},
+      {id:"eo-sen",name:"Sensör Kafası",partNo:"SNK-100",qty:1,children:[
+        {id:"eo-s01",name:"Termal Kamera",partNo:"TKM-010",qty:1,children:[]},
+        {id:"eo-s02",name:"Gündüz Kamerası",partNo:"GKM-020",qty:1,children:[]},
+        {id:"eo-s03",name:"Lazer Mesafe Ölçer",partNo:"LMO-030",qty:1,children:[]},
       ]},
-      {id:"eo-proc",name:"Görüntü İşleme",partNo:"GIU-200",serialNo:"GIU-S-09023",qty:1,jiraKey:"",children:[
-        {id:"eo-p01",name:"Video Tracker",partNo:"VTK-010",serialNo:"VTK-E-91011",qty:1,jiraKey:"",children:[]},
-        {id:"eo-p02",name:"Füzyon Modülü",partNo:"GFM-020",serialNo:"GFM-F-92088",qty:1,jiraKey:"",children:[]},
+      {id:"eo-proc",name:"Görüntü İşleme",partNo:"GIU-200",qty:1,children:[
+        {id:"eo-p01",name:"Video Tracker",partNo:"VTK-010",qty:1,children:[]},
+        {id:"eo-p02",name:"Füzyon Modülü",partNo:"GFM-020",qty:1,children:[]},
       ]},
     ]},
 ];
@@ -426,10 +426,10 @@ async function init(){
 // ═══════ SIDEBAR ═══════
 function renderSidebar(){
   const q=(document.getElementById("sysSearch")?.value||"").toLowerCase();
-  document.getElementById("sysList").innerHTML=S.systems.filter(s=>!q||s.name.toLowerCase().includes(q)||s.serialNo.toLowerCase().includes(q)).map(s=>`
+  document.getElementById("sysList").innerHTML=S.systems.filter(s=>!q||s.name.toLowerCase().includes(q)).map(s=>`
     <div class="sys-item ${S.selSys===s.id?'active':''}" onclick="selSys('${s.id}')" oncontextmenu="showSysCtxMenu(event,'${s.id}')">
       <div class="sys-icon-sm">${s.icon}</div>
-      <div class="sys-item-info"><div class="sys-item-name">${s.name}</div><div class="sys-item-sub">${s.serialNo}</div></div>
+      <div class="sys-item-info"><div class="sys-item-name">${s.name}</div></div>
       <div class="sys-item-dot" style="background:${stColor(s.status)}"></div>
     </div>`).join("");
 }
@@ -457,7 +457,6 @@ function renameSys(id){
   document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">Sistemi Düzenle</div>
     <div class="field"><label class="field-label">Sistem Adı</label><input class="field-input" id="rename-input" value="${sys.name.replace(/"/g,'&quot;')}"></div>
-    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="rename-serial" value="${(sys.serialNo||'').replace(/"/g,'&quot;')}"></div>
     <div class="modal-btns">
       <button class="modal-btn" onclick="closeModal()">İptal</button>
       <button class="modal-btn primary" onclick="saveRename('${id}')">Kaydet</button>
@@ -467,10 +466,9 @@ function renameSys(id){
 }
 async function saveRename(id){
   const v=document.getElementById('rename-input')?.value.trim();
-  const sn=document.getElementById('rename-serial')?.value.trim();
   if(!v)return;
   const sys=S.systems.find(s=>s.id===id);if(!sys)return;
-  sys.name=v;if(sn)sys.serialNo=sn;
+  sys.name=v;
   closeModal();await persist();renderSidebar();renderMain();toast("Güncellendi");
 }
 function confirmDeleteSys(id){
@@ -489,10 +487,10 @@ function selSys(id){S.selSys=id;S.selNode=null;S.tab="tree";S.orgMaxDepth=null;c
 // ═══════ MAIN ═══════
 function renderMain(){
   const el=document.getElementById("mainContent");
-  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.10</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/Jira/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
+  if(!S.selSys){el.innerHTML=`<div class="empty-state" style="height:100%"><div class="empty-icon">🔧</div><div class="empty-title">BOM Manager v2.11</div><div class="empty-desc">Soldaki listeden sistem seçin veya yeni oluşturun.<br>Excel/JSON import-export destekli.</div><button class="sf-btn primary" onclick="showAddSystemModal()" style="padding:8px 20px;font-size:12px">+ Yeni Sistem</button></div>`;return}
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
   el.innerHTML=`
-    <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div><div class="sys-hdr-sn">S/N: ${sys.serialNo}</div></div></div>
+    <div class="sys-hdr"><div class="sys-hdr-row"><div class="sys-hdr-icon">${sys.icon}</div><div><div class="sys-hdr-name">${sys.name}</div></div></div>
       <div class="chips"><span class="chip" style="color:${stColor(sys.status)};background:${stColor(sys.status)}18">${sys.status}</span><span class="chip" style="background:var(--sf2);color:var(--tx2)">${sys.type}</span><span class="chip" style="background:var(--sf2);color:var(--tx3)">${cnt(sys)} parça</span><span class="chip" style="background:rgba(139,92,246,.12);color:var(--purple)">${sys.revision||'Rev-A'}</span></div></div>
     <div class="tab-bar">
       <div class="tab-item ${S.tab==='tree'?'active':''}" onclick="switchTab('tree')">🌳 Ürün Ağacı</div>
@@ -512,8 +510,8 @@ function renderMain(){
 function renderToolbar(){
   const tb=document.getElementById("toolbarArea");if(!tb)return;
   if(S.tab==='tree'){
-    const bulkHtml=S.multiSel&&S.multiSel.length>0?`<div class="bulk-bar"><span>${S.multiSel.length} seçili</span><button onclick="bulkEditQty()">Adet Güncelle</button><button onclick="bulkEditJira()">Jira Key Ata</button><button class="danger" onclick="bulkDelete()">Sil</button><button onclick="clearMultiSel()">✕ İptal</button></div>`:'';
-    tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="collapseAll()">▶ Kapat</button>${Array.from({length:21},(_,i)=>`<button class="tool-btn" style="min-width:28px;padding:4px 5px;font-size:10px" onclick="expandToDepth(${i+1})">${i+1}</button>`).join('')}<button class="tool-btn" onclick="expandAll()">▼ Tümü</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no, seri no, Jira)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJira()">📄 Jira CSV</button><button class="tool-btn" onclick="exportJSON()">⬇ JSON</button><div class="tool-sep"></div><button class="tool-btn" id="bomSaveBtn" onclick="manualSaveBOM()" style="font-weight:600">💾 BOM Kaydet</button>`;
+    const bulkHtml=S.multiSel&&S.multiSel.length>0?`<div class="bulk-bar"><span>${S.multiSel.length} seçili</span><button onclick="bulkEditQty()">Adet Güncelle</button><button class="danger" onclick="bulkDelete()">Sil</button><button onclick="clearMultiSel()">✕ İptal</button></div>`:'';
+    tb.innerHTML=bulkHtml+`<button class="tool-btn" onclick="collapseAll()">▶ Kapat</button>${Array.from({length:21},(_,i)=>`<button class="tool-btn" style="min-width:28px;padding:4px 5px;font-size:10px" onclick="expandToDepth(${i+1})">${i+1}</button>`).join('')}<button class="tool-btn" onclick="expandAll()">▼ Tümü</button><div class="tool-sep"></div><button class="tool-btn" onclick="addChild()">+ Alt Sistem</button><div class="tool-sep"></div><div class="search-bar"><input id="treeSearch" placeholder="Parça ara (ad, parça no)..." value="${S.searchQuery||''}" oninput="searchTree(this.value)" onkeydown="searchKeyNav(event)"><span class="search-info" id="searchInfo"></span><button class="search-nav-btn" onclick="searchNav(-1)">▲</button><button class="search-nav-btn" onclick="searchNav(1)">▼</button></div><div class="tool-spacer"></div><button class="tool-btn" onclick="exportExcel()">📗 Excel</button><button class="tool-btn" onclick="exportJSON()">⬇ JSON</button><div class="tool-sep"></div><button class="tool-btn" id="bomSaveBtn" onclick="manualSaveBOM()" style="font-weight:600">💾 BOM Kaydet</button>`;
     if(S.searchQuery)setTimeout(()=>{const el=document.getElementById('treeSearch');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},0);
   } else if(S.tab==='org'){
     const ov=S.orgSearch||'';
@@ -561,7 +559,7 @@ function renderToolbar(){
       <button class="tool-btn" onclick="exportBomTableCSV()">⬇ CSV İndir</button>`;
     setTimeout(()=>{updateBomTableInfo();},0);
   } else if(S.tab==='dsm'){
-    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Alt sistem bazında parça, Jira ve kalite metrikleri karşılaştırması</span><div class="tool-spacer"></div>`;
+    tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">Alt sistem bazında parça ve kalite metrikleri karşılaştırması</span><div class="tool-spacer"></div>`;
   } else if(S.tab==='compare'){
     tb.innerHTML=`<span style="font-size:10px;color:var(--tx3)">İki sistemi karşılaştırın</span><div class="tool-spacer"></div>`;
   } else { tb.innerHTML=''; }
@@ -605,9 +603,7 @@ function _rowHtml(r) {
   h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;
   h+=`<span class="tl">${n.name}</span>`;
   if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;
-  h+=`<span class="ts">${n.serialNo||''}</span>`;
   if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;
-  if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;
   if(has)h+=`<span class="tc">${n.children.length}</span>`;
   h+=`<span class="tn-depth">L${d+1}</span>`;
   h+=`<button class="tn-indent" onclick="event.stopPropagation();outdentNode('${n.id}')" title="Bir üst seviyeye çıkar (←)">←</button>`;
@@ -691,7 +687,7 @@ async function bomEmptyDrop(e){
     let found=null,foundSys=null;for(const s of S.systems){found=find(s.children,dragKey.slice(4));if(found){foundSys=s;break}}
     if(!found)return;
     srcExtraCols=foundSys?._extraCols||[];
-    srcNode=_deepCopyNode({...found,serialNo:`SN-${Date.now().toString(36).toUpperCase()}`});
+    srcNode=_deepCopyNode(found);
   } else return;
   if(srcExtraCols.length){if(!sys._extraCols)sys._extraCols=[];for(const c of srcExtraCols){if(!sys._extraCols.includes(c))sys._extraCols.push(c);}}
   sys.children.push(srcNode);
@@ -700,7 +696,7 @@ async function bomEmptyDrop(e){
   addRev("İlk parça eklendi",srcNode.name);
   await persist();renderMain();toast(`"${srcNode.name}" BOM'a eklendi${childCount?' ('+childCount+' alt parça ile)':''}`);
 }
-function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of nodes){const has=n.children?.length>0,op=S.expanded[n.id],sel=S.selNode===n.id;const isHit=S.searchHits&&S.searchHits.includes(n.id);const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;const isMulti=S.multiSel.includes(n.id);h+=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;h+=`<span class="drag-handle">⠿</span>`;h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;h+=`<span class="tl">${n.name}</span>`;if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;h+=`<span class="ts">${n.serialNo}</span>`;if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;if(n.jiraKey)h+=`<span class="tj">${n.jiraKey}</span>`;if(has)h+=`<span class="tc">${n.children.length}</span>`;h+=`</div>`;if(op&&has)h+=rnodes(n.children,d+1)}return h}
+function rnodes(nodes,d){if(!nodes?.length)return"";let h="";for(const n of nodes){const has=n.children?.length>0,op=S.expanded[n.id],sel=S.selNode===n.id;const isHit=S.searchHits&&S.searchHits.includes(n.id);const isCur=S.searchHits&&S.searchHits[S.searchIdx]===n.id;const isMulti=S.multiSel.includes(n.id);h+=`<div class="tn ${sel?'sel':''} ${isHit?'search-hit':''} ${isMulti?'multi-sel':''}" id="tn-${n.id}" style="padding-left:${10+d*20}px" draggable="true" onclick="selNode(event,'${n.id}')" ondblclick="editNode('${n.id}')" ondragstart="dragStart(event,'${n.id}')" ondragover="dragOver(event,'${n.id}')" ondragleave="dragLeave(event)" ondrop="dropNode(event,'${n.id}')" ondragend="dragEnd(event)">`;h+=`<span class="drag-handle">⠿</span>`;h+=has?`<span class="ta ${op?'op':''}" onclick="event.stopPropagation();tog('${n.id}')">▶</span>`:`<span class="td"></span>`;h+=`<span class="tl">${n.name}</span>`;if(n.partNo)h+=`<span class="tp">${n.partNo}</span>`;if(n.qty>1)h+=`<span class="tq">×${n.qty}</span>`;if(has)h+=`<span class="tc">${n.children.length}</span>`;h+=`</div>`;if(op&&has)h+=rnodes(n.children,d+1)}return h}
 
 // ═══════ TREE SEARCH ═══════
 S.searchQuery='';S.searchHits=[];S.searchIdx=0;
@@ -724,7 +720,7 @@ function _doSearch(q) {
 
   // Walk tree, collect hits (fast even at 20k nodes)
   const walkFind=(nodes)=>{for(const n of nodes){
-    if((n.name||'').toLowerCase().includes(ql)||(n.partNo||'').toLowerCase().includes(ql)||(n.serialNo||'').toLowerCase().includes(ql)||(n.jiraKey||'').toLowerCase().includes(ql)){S.searchHits.push(n.id)}
+    if((n.name||'').toLowerCase().includes(ql)||(n.partNo||'').toLowerCase().includes(ql)){S.searchHits.push(n.id)}
     if(n.children?.length)walkFind(n.children);
   }};
   walkFind(sys.children);
@@ -873,7 +869,7 @@ async function dropNode(e,targetId){
       let found=null,foundSys=null;for(const s of S.systems){found=find(s.children,dragKey.slice(4));if(found){foundSys=s;break}}
       if(!found)return;
       srcExtraCols=foundSys?._extraCols||[];
-      srcNode=_deepCopyNode({...found,serialNo:`SN-${Date.now().toString(36).toUpperCase()}`});
+      srcNode=_deepCopyNode(found);
     } else return;
 
     // Hedef sisteme eksik _extraCols ekle
@@ -919,20 +915,6 @@ async function applyBulkQty(){
   let count=0;
   for(const id of S.multiSel){const n=find(sys.children,id);if(n){n.qty=qty;count++}}
   addRev("Toplu adet",`${count} parça → ×${qty}`);await persist();closeModal();S.multiSel=[];renderMain();toast(`${count} parça güncellendi`);
-}
-function bulkEditJira(){
-  if(!S.multiSel.length)return;
-  document.getElementById("modalC").innerHTML=`<div class="modal-bg" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">Toplu Jira Key Ata</div><div class="modal-desc">${S.multiSel.length} parça seçili</div>
-    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="bulk-jira" placeholder="PROJ-1234"></div>
-    <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="applyBulkJira()">Uygula</button></div></div></div>`;
-}
-async function applyBulkJira(){
-  const jira=document.getElementById('bulk-jira').value.trim();
-  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
-  let count=0;
-  for(const id of S.multiSel){const n=find(sys.children,id);if(n){n.jiraKey=jira;count++}}
-  addRev("Toplu Jira",`${count} parça → ${jira}`);await persist();closeModal();S.multiSel=[];renderMain();toast(`${count} parça güncellendi`);
 }
 function bulkDelete(){
   if(!S.multiSel.length)return;
@@ -985,7 +967,7 @@ function renderOrgChart(container) {
   }
   const maxD = S.orgMaxDepth;
 
-  const root = { name: sys.name, partNo: "", serialNo: sys.serialNo, children: sys.children, _isRoot: true, id: 'org-root' };
+  const root = { name: sys.name, partNo: "", children: sys.children, _isRoot: true, id: 'org-root' };
   // Yukarıdan aşağıya layout: x = yatay konum, y = derinlik * satır yüksekliği
   const nodeW = 200, nodeH = 56, gapX = 20, gapY = 60;
   const positions = [];
@@ -1097,7 +1079,6 @@ function renderOrgChart(container) {
       inner += `<rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
       inner += `<text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${truncate(p.node.name,22)}</text>`;
       if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+35}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.partNo}</text>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+49}" text-anchor="middle" fill="${sc2}" font-size="9" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.serialNo||''}</text>`;
       if (p.node.qty > 1) {
         inner += `<rect x="${p.x+p.w-30}" y="${p.y-8}" width="34" height="16" rx="8" fill="#f59e0b" opacity="0.9" pointer-events="none"/>`;
         inner += `<text x="${p.x+p.w-13}" y="${p.y+4}" text-anchor="middle" fill="#000" font-size="9" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty}</text>`;
@@ -1630,7 +1611,7 @@ async function _orgLibDrop(dragKey, targetNid) {
     srcNode = _libItemToNode(item);
   } else if (dragKey.startsWith('bom:')) {
     let f=null; for(const s of S.systems){f=find(s.children,dragKey.slice(4));if(f)break} if(!f)return;
-    srcNode = _deepCopyNode({...f, serialNo:`SN-${Date.now().toString(36).toUpperCase()}`});
+    srcNode = _deepCopyNode(f);
   } else return;
 
   if (!target.children) target.children = [];
@@ -1766,9 +1747,7 @@ function _doOrgSearch(q) {
   const walk = (nodes) => {
     for (const n of nodes) {
       if ((n.name||'').toLowerCase().includes(ql)
-        || (n.partNo||'').toLowerCase().includes(ql)
-        || (n.serialNo||'').toLowerCase().includes(ql)
-        || (n.jiraKey||'').toLowerCase().includes(ql)) {
+        || (n.partNo||'').toLowerCase().includes(ql)) {
         hitIds.push(n.id);
       }
       if (n.children?.length) walk(n.children);
@@ -2271,9 +2250,7 @@ function showNodeRP(id){
     </div>
     <div class="field"><label class="field-label">Parça Adı</label><input class="field-input" id="nd-n" value="${n.name}"></div>
     <div class="field"><label class="field-label">Parça No</label><input class="field-input mono" id="nd-p" value="${n.partNo||''}"></div>
-    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="nd-s" value="${n.serialNo||''}"></div>
     <div class="field"><label class="field-label">Adet</label><input class="field-input mono" id="nd-q" type="number" min="1" value="${n.qty||1}"></div>
-    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="nd-j" value="${n.jiraKey||''}" placeholder="PROJ-1234"></div>
     <div style="margin-top:10px;display:flex;gap:4px">
       <button class="tool-btn" onclick="addChildTo('${id}')">+ Alt Parça</button>
       <button class="tool-btn danger" onclick="delNode('${id}')">Sil</button>
@@ -2281,7 +2258,7 @@ function showNodeRP(id){
   document.getElementById("rpActs").innerHTML=`<button class="rp-btn cancel" onclick="closeRP()">İptal</button><button class="rp-btn save" onclick="saveNode('${id}')">Kaydet</button>`;
 }
 async function saveNode(id){const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;const n=find(sys.children,id);if(!n)return;
-  const old=n.name;n.name=document.getElementById("nd-n").value||n.name;n.partNo=document.getElementById("nd-p").value;n.serialNo=document.getElementById("nd-s").value;n.qty=parseInt(document.getElementById("nd-q").value)||1;n.jiraKey=document.getElementById("nd-j").value;
+  const old=n.name;n.name=document.getElementById("nd-n").value||n.name;n.partNo=document.getElementById("nd-p").value;n.qty=parseInt(document.getElementById("nd-q").value)||1;
   addRev("Güncellendi",`${old}→${n.name}`);await persist();renderTab();toast("Kaydedildi");}
 function closeRP(){document.getElementById("rpanel").classList.add("hidden");S.selNode=null;renderTab()}
 function editNode(id){showNodeRP(id)}
@@ -2303,12 +2280,11 @@ function showAddSystemModal(){
     <div class="modal-title">Yeni Sistem</div><div class="modal-desc">Üst seviye sistem oluşturun.</div>
     <div class="field"><label class="field-label">Ad</label><input class="field-input" id="ms-n" placeholder="Radar Sistemi"></div>
     <div class="field"><label class="field-label">Tip</label><select class="field-input" id="ms-t"><option>Radar</option><option>EW</option><option>Haberleşme</option><option>EO</option><option>C4ISR</option><option>Silah Sistemi</option><option>Platform</option></select></div>
-    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="ms-s" placeholder="RDR-2026-X001"></div>
     <div class="field"><label class="field-label">Durum</label><select class="field-input" id="ms-st"><option>Aktif</option><option>Üretimde</option><option>Test</option><option>Bakımda</option></select></div>
     <div class="field"><label class="field-label">İkon</label><select class="field-input" id="ms-i"><option>📡</option><option>⚡</option><option>🔗</option><option>🔭</option><option>🛡️</option><option>🚀</option></select></div>
     <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="createSys('${id}')">Oluştur</button></div></div></div>`}
 async function createSys(id){const n=document.getElementById("ms-n").value.trim();if(!n){toast("Ad gerekli","error");return}
-  S.systems.push({id,name:n,type:document.getElementById("ms-t").value,serialNo:document.getElementById("ms-s").value||`SYS-${Date.now().toString(36).toUpperCase()}`,status:document.getElementById("ms-st").value,icon:document.getElementById("ms-i").value,revision:"Rev-A",children:[]});
+  S.systems.push({id,name:n,type:document.getElementById("ms-t").value,status:document.getElementById("ms-st").value,icon:document.getElementById("ms-i").value,revision:"Rev-A",children:[]});
   addRev("Sistem oluşturuldu",n);await persist();closeModal();selSys(id);renderSidebar();toast("Oluşturuldu")}
 
 // ═══════ NODE CONTEXT MENU ═══════
@@ -2337,7 +2313,7 @@ async function quickAddChild(pid){
   const parent=sys.id===pid?sys:find(sys.children,pid);if(!parent)return;
   if(!parent.children)parent.children=[];
   const newId=gid();
-  parent.children.push({id:newId,name:'Yeni Parça',partNo:'',serialNo:`SN-${Date.now().toString(36).toUpperCase()}`,qty:1,jiraKey:'',children:[]});
+  parent.children.push({id:newId,name:'Yeni Parça',partNo:'',qty:1,children:[]});
   S.expanded[pid]=true;
   addRev("Hızlı ekleme",`→ ${parent.name}`);
   await persist();renderMain();
@@ -2539,7 +2515,7 @@ async function libZoneDrop(e){
 }
 
 function _deepCopyNode(n){
-  return {id:gid(),name:n.name,partNo:n.partNo||'',serialNo:n.serialNo||'',qty:n.qty||1,jiraKey:n.jiraKey||'',_extra:n._extra?{...n._extra}:{},children:(n.children||[]).map(_deepCopyNode)};
+  return {id:gid(),name:n.name,partNo:n.partNo||'',qty:n.qty||1,_extra:n._extra?{...n._extra}:{},children:(n.children||[]).map(_deepCopyNode)};
 }
 function _expandAll(n){
   if(n.children&&n.children.length){S.expanded[n.id]=true;n.children.forEach(_expandAll);}
@@ -2566,10 +2542,10 @@ function _libItemToNode(libItem){
     libItem._extra={...realNode._extra};
     if(realSys?._extraCols?.length)libItem._extraCols=realSys._extraCols;
     persist();
-    return _deepCopyNode({...realNode,serialNo:`SN-${Date.now().toString(36).toUpperCase()}`});
+    return _deepCopyNode(realNode);
   }
   // BOM'da bulunamadı — mevcut kütüphane verisinden kopyala
-  return _deepCopyNode({...libItem,serialNo:`SN-${Date.now().toString(36).toUpperCase()}`});
+  return _deepCopyNode(libItem);
 }
 function addPartToLibrary(n){
   const hasChildren=n.children&&n.children.length>0;
@@ -2644,17 +2620,15 @@ function showAddPartModal(parent){
     <div class="modal-title">Yeni Parça</div><div class="modal-desc">Üst: <b>${parent.name}</b></div>
     <div class="field"><label class="field-label">Ad</label><input class="field-input" id="mp-n" placeholder="T/R Modül"></div>
     <div class="field"><label class="field-label">Parça No</label><input class="field-input mono" id="mp-p" placeholder="TRM-110"></div>
-    <div class="field"><label class="field-label">Seri No</label><input class="field-input mono" id="mp-s" placeholder="TRM-B-10441"></div>
     <div class="field"><label class="field-label">Adet</label><input class="field-input mono" id="mp-q" type="number" min="1" value="1"></div>
-    <div class="field"><label class="field-label">Jira Key</label><input class="field-input mono" id="mp-j" placeholder="PROJ-1234"></div>
     <div class="modal-btns"><button class="modal-btn" onclick="closeModal()">İptal</button><button class="modal-btn primary" onclick="createPart('${parent.id}','${id}')">Ekle</button></div></div></div>`}
 async function createPart(pid,id){const n=document.getElementById("mp-n").value.trim();if(!n){toast("Ad gerekli","error");return}
   const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;let p=sys.id===pid?sys:find(sys.children,pid);if(!p)return;if(!p.children)p.children=[];
-  p.children.push({id,name:n,partNo:document.getElementById("mp-p").value,serialNo:document.getElementById("mp-s").value||`SN-${Date.now().toString(36).toUpperCase()}`,qty:parseInt(document.getElementById("mp-q").value)||1,jiraKey:document.getElementById("mp-j").value,children:[]});
+  p.children.push({id,name:n,partNo:document.getElementById("mp-p").value,qty:parseInt(document.getElementById("mp-q").value)||1,children:[]});
   S.expanded[pid]=true;addRev("Parça eklendi",`${n}→${p.name}`);await persist();closeModal();renderMain();toast("Eklendi")}
 
 // ═══════ IMPORT/EXPORT ═══════
-function showImportMenu(){showModal("İçe Aktar","Kaynak seçin:",[{text:"İptal"},{text:"📗 Excel (Yeni BOM)",cls:"primary",action:importExcel},{text:"📊 Durum/Ek Veri",cls:"primary",action:importAuxData},{text:"📄 Jira CSV",cls:"primary",action:importJiraCSV},{text:"💾 JSON",cls:"primary",action:importBomJSON}])}
+function showImportMenu(){showModal("İçe Aktar","Kaynak seçin:",[{text:"İptal"},{text:"📗 Excel (Yeni BOM)",cls:"primary",action:importExcel},{text:"📊 Durum/Ek Veri",cls:"primary",action:importAuxData},{text:"💾 JSON",cls:"primary",action:importBomJSON}])}
 
 // ── AUX DATA IMPORT (Yardımcı Veri — stok no eşleştirmeli) ──
 async function importAuxData(){
@@ -2763,9 +2737,7 @@ async function importExcel(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
       <div class="field"><label class="field-label">Parça Adı *</label><select class="field-input" id="xl-name">${colOpts}</select></div>
       <div class="field"><label class="field-label">Parça No</label><select class="field-input" id="xl-pn">${noneOpt}${colOpts}</select></div>
-      <div class="field"><label class="field-label">Seri No</label><select class="field-input" id="xl-sn">${noneOpt}${colOpts}</select></div>
       <div class="field"><label class="field-label">Adet</label><select class="field-input" id="xl-qty">${noneOpt}${colOpts}</select></div>
-      <div class="field"><label class="field-label">Jira Key</label><select class="field-input" id="xl-jira">${noneOpt}${colOpts}</select></div>
       <div class="field"><label class="field-label">Parent ID / Üst</label><select class="field-input" id="xl-parent">${noneOpt}${colOpts}</select></div>
       <div class="field"><label class="field-label">Seviye (Level / Indent)</label><select class="field-input" id="xl-level">${noneOpt}${colOpts}</select></div>
       <div class="field"><label class="field-label">ID</label><select class="field-input" id="xl-id">${noneOpt}${colOpts}</select></div>
@@ -2781,9 +2753,7 @@ async function importExcel(){
   const hl = headers.map(h => (h||'').toString().toLowerCase());
   const autoMap = { name: ['bileşen kısa tanımı','bileşen kısa tanimi','kısa tanım','kisa tanim','name','summary','description','item','tanım'],
     pn:['bileşen stok','bilesen stok','partno','part no','parça no','pn','part_no'],
-    sn:['serialno','serial','seri no','sn','serial_no'],
     qty:['bileşen miktarı','bilesen miktari','temel ölçü biriminde','qty','quantity','adet','miktar','count'],
-    jira:['jira','key','issue','ticket'],
     parent:['malzeme stok','parent','üst','parent_id','parentid'],
     level:['düzey','duzey','level','seviye','indent','depth','lvl'],
     id:['id','item_id'] };
@@ -2797,12 +2767,12 @@ async function importExcel(){
 async function processExcel(){
   const data=window._xlData;if(!data)return;
   const get=id=>{const v=parseInt(document.getElementById(id)?.value);return v>=0?v:-1};
-  const nameCol=get('xl-name'),pnCol=get('xl-pn'),snCol=get('xl-sn'),qtyCol=get('xl-qty'),jiraCol=get('xl-jira'),parentCol=get('xl-parent'),levelCol=get('xl-level'),idCol=get('xl-id');
+  const nameCol=get('xl-name'),pnCol=get('xl-pn'),qtyCol=get('xl-qty'),parentCol=get('xl-parent'),levelCol=get('xl-level'),idCol=get('xl-id');
 
   if(nameCol<0){toast("Parça Adı sütunu gerekli","error");return}
 
   const headers=data[0]||[];
-  const mappedCols=new Set([nameCol,pnCol,snCol,qtyCol,jiraCol,parentCol,levelCol,idCol].filter(c=>c>=0));
+  const mappedCols=new Set([nameCol,pnCol,qtyCol,parentCol,levelCol,idCol].filter(c=>c>=0));
   // Extra (unmapped) columns
   const extraColIdxs=headers.map((_,i)=>i).filter(i=>!mappedCols.has(i));
   const extraColNames=extraColIdxs.map(i=>(headers[i]||'Col'+i).toString());
@@ -2823,7 +2793,7 @@ async function processExcel(){
     const nodeMap={};
     for(const r of rows){
       const id=String(r[idCol]||gid());
-      nodeMap[id]={id:'xl-'+id,name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]};
+      nodeMap[id]={id:'xl-'+id,name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,_extra:makeExtra(r),children:[]};
     }
     for(const r of rows){
       const id=String(r[idCol]);
@@ -2835,7 +2805,7 @@ async function processExcel(){
     const stack=[{children}];
     for(const r of rows){
       const level=parseInt(r[levelCol])||0;
-      const node={id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]};
+      const node={id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,_extra:makeExtra(r),children:[]};
       while(stack.length>level+1)stack.pop();
       if(stack.length<=level)stack.push(stack[stack.length-1].children[stack[stack.length-1].children.length-1]||{children});
       const parent=stack[stack.length-1];
@@ -2844,34 +2814,17 @@ async function processExcel(){
     }
   } else {
     for(const r of rows){
-      children.push({id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',serialNo:snCol>=0?String(r[snCol]||''):'SN-'+gid(),qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,jiraKey:jiraCol>=0?String(r[jiraCol]||''):'',_extra:makeExtra(r),children:[]});
+      children.push({id:'xl-'+gid(),name:String(r[nameCol]),partNo:pnCol>=0?String(r[pnCol]||''):'',qty:qtyCol>=0?parseInt(r[qtyCol])||1:1,_extra:makeExtra(r),children:[]});
     }
   }
 
-  S.systems.push({id:sysId,name:sysName,type:"Import",serialNo:`XLS-${Date.now().toString(36).toUpperCase()}`,status:"Aktif",icon:"📦",revision:"Rev-A",_extraCols:extraColNames,children});
+  S.systems.push({id:sysId,name:sysName,type:"Import",status:"Aktif",icon:"📦",revision:"Rev-A",_extraCols:extraColNames,children});
   addRev("Excel içe aktarıldı",`${rows.length} satır → ${sysName}`);
   await persist();closeModal();selSys(sysId);renderSidebar();toast(`${rows.length} parça yüklendi`);
 }
 
-// ── JIRA CSV ──
-async function exportJira(){
-  const sys=S.systems.find(s=>s.id===S.selSys);if(!sys)return;
-  const rows=[["Summary","Issue Type","Description","Parent","Priority","Labels","Custom field (Part No)","Custom field (Serial No)","Custom field (Quantity)"].join(",")];
-  rows.push(csvR([sys.name,"Epic",`${sys.type}|S/N:${sys.serialNo}|${sys.status}`,"","High",sys.type,"",sys.serialNo,"1"]));
-  const w=(ns,pn)=>{for(const n of ns){const has=n.children?.length>0;rows.push(csvR([n.name,has?"Story":"Sub-task",`${n.partNo||'-'}|${n.serialNo}`,pn,"Medium",sys.type,n.partNo||"",n.serialNo,String(n.qty||1)]));if(has)w(n.children,n.name)}};
-  w(sys.children,sys.name);
-  const p=await window.api.exportJiraCsv(rows.join("\n"));if(p){addRev("Jira CSV",p.split(/[/\\]/).pop());await persist();toast("CSV kaydedildi")}
-}
 function csvR(f){return f.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(",")}
 
-async function importJiraCSV(){const c=await window.api.importJiraCsv();if(!c)return;
-  const lines=parseCSV(c);if(lines.length<2){toast("Geçersiz CSV","error");return}
-  const h=lines[0].map(x=>x.trim().toLowerCase());const si=h.findIndex(x=>x==='summary'),ki=h.findIndex(x=>x.includes('key'));
-  if(si<0){toast("Summary sütunu yok","error");return}
-  const sys=S.systems.find(s=>s.id===S.selSys);let m=0;
-  if(sys){for(let i=1;i<lines.length;i++){const s=lines[i][si]?.trim(),k=ki>=0?lines[i][ki]?.trim():"";if(!s||!k)continue;
-    const w=ns=>{for(const n of ns){if(n.name.toLowerCase()===s.toLowerCase()||n.partNo===s){n.jiraKey=k;m++}if(n.children?.length)w(n.children)}};w(sys.children)}}
-  addRev("Jira CSV import",`${m} eşleşme`);await persist();renderMain();toast(`${m} parça eşleştirildi`)}
 function parseCSV(t){const lines=[];let cur=[],f="",q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'&&t[i+1]==='"'){f+='"';i++}else if(c==='"')q=false;else f+=c}else{if(c==='"')q=true;else if(c===','){cur.push(f);f=""}else if(c==='\n'||(c==='\r'&&t[i+1]==='\n')){cur.push(f);f="";lines.push(cur);cur=[];if(c==='\r')i++}else f+=c}}if(f||cur.length){cur.push(f);lines.push(cur)}return lines}
 
 async function exportJSON(){const j=JSON.stringify({systems:S.systems,revisions:S.revisions,exportedAt:new Date().toISOString()},null,2);const p=await window.api.exportBomJson(j);if(p){addRev("JSON export",p.split(/[/\\]/).pop());await persist();toast("JSON kaydedildi")}}
@@ -2889,11 +2842,11 @@ async function exportSysExcel(id){
 
 async function _doExportSysExcel(sys){
   const extraCols=sys._extraCols||[];
-  const header=["Level","Parça Adı","Parça No","Seri No","Adet","Jira Key","Parent",...extraCols];
+  const header=["Level","Parça Adı","Parça No","Adet","Parent",...extraCols];
   const rows=[header];
   const w=(ns,d,pn)=>{
     for(const n of ns){
-      const base=[d,n.name,n.partNo||"",n.serialNo||"",n.qty||1,n.jiraKey||"",pn];
+      const base=[d,n.name,n.partNo||"",n.qty||1,pn];
       const extras=extraCols.map(c=>(n._extra&&n._extra[c]!=null)?n._extra[c]:'');
       rows.push([...base,...extras]);
       if(n.children?.length)w(n.children,d+1,n.name);
@@ -3108,7 +3061,7 @@ function flattenBOM(nodes,parentPath,depth=0){
   const result=[];
   for(const n of(nodes||[])){
     const path=parentPath?parentPath+'/'+n.name:n.name;
-    result.push({id:n.id,name:n.name,partNo:n.partNo||'',serialNo:n.serialNo||'',qty:n.qty||1,jiraKey:n.jiraKey||'',_path:path,_depth:depth});
+    result.push({id:n.id,name:n.name,partNo:n.partNo||'',qty:n.qty||1,_path:path,_depth:depth});
     if(n.children?.length)result.push(...flattenBOM(n.children,path,depth+1));
   }
   return result;
@@ -3678,7 +3631,7 @@ function renderBomTable(container) {
       if (n.children?.length) walk(n.children, depth+1, [...ancestors, {name: n.name||'', partNo: n.partNo||''}]);
     }
   }
-  walk(sys.children, 0, [{name: sys.name, partNo: sys.serialNo||''}]);
+  walk(sys.children, 0, [{name: sys.name, partNo: ''}]);
   S.bomTableRows = flat;
   S.bomTableSort = { col: 'depth', dir: 1 };
   _btApplyFilter();
@@ -3892,11 +3845,9 @@ function renderDSM(container) {
     { key:'total',    label:'Toplam Parça',      desc:'Tüm alt parçalar dahil',         fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
     { key:'unique',   label:'Benzersiz Parça No', desc:'Farklı parça numarası sayısı',   fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
     { key:'depth',    label:'Max Derinlik',       desc:'Ağaç derinliği (seviye)',        fmt:v=>`${v} lvl`,    color:(v,mm)=>_dsmColor(v,'warn',3,5) },
-    { key:'jira',     label:'Jira Kapsama',       desc:'Jira key atanmış parça %',       fmt:v=>`%${v}`,       color:(v,mm)=>_dsmColorPct(v) },
     { key:'nopn',     label:'Parça No Eksik',     desc:'Parça numarası boş olan sayısı', fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'danger',0,5) },
     { key:'maxqty',   label:'Max Adet',           desc:'En yüksek adetli tek parça',    fmt:v=>`×${v}`,       color:(v,mm)=>_dsmColor(v,'neutral') },
     { key:'totalqty', label:'Toplam Adet',        desc:'Tüm parçaların adet toplamı',   fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'neutral') },
-    { key:'nojira',   label:'Jira Eksik',         desc:'Jira key olmayan parça sayısı', fmt:v=>`${v}`,        color:(v,mm)=>_dsmColor(v,'danger',0,10) },
   ];
 
   const palette = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6','#14b8a6','#f97316','#06b6d4','#84cc16'];
@@ -3906,13 +3857,10 @@ function renderDSM(container) {
     const total = all.length;
     const uniquePNs = new Set(all.map(n=>n.partNo).filter(Boolean)).size;
     const depth = c.children?.length ? maxDepth(c.children, 1) : 0;
-    const withJira = all.filter(n=>n.jiraKey).length;
-    const jiraPct = total ? Math.round(withJira/total*100) : 100;
     const noPn = all.filter(n=>!n.partNo).length;
     const maxQty = all.reduce((m,n)=>Math.max(m,n.qty||1),1);
     const totalQty = all.reduce((s,n)=>s+(n.qty||1),0);
-    const noJira = total - withJira;
-    return { name:c.name, partNo:c.partNo||'', color:palette[i%palette.length], total, unique:uniquePNs, depth, jira:jiraPct, nopn:noPn, maxqty:maxQty, totalqty:totalQty, nojira:noJira };
+    return { name:c.name, partNo:c.partNo||'', color:palette[i%palette.length], total, unique:uniquePNs, depth, nopn:noPn, maxqty:maxQty, totalqty:totalQty };
   });
 
   const minMax = {};
@@ -3993,8 +3941,6 @@ function renderDashboard(container){
   const flat=flattenBOM(sys.children,'');
   const total=flat.length;
   const totalQty=flat.reduce((s,n)=>s+(n.qty||1),0);
-  const withJira=flat.filter(n=>n.jiraKey).length;
-  const noJira=flat.filter(n=>!n.jiraKey);
   const maxDepth=flat.reduce((m,n)=>Math.max(m,n._depth),0)+1;
 
   // Group by depth level
@@ -4076,14 +4022,6 @@ function renderDashboard(container){
       (dupPNs.length>8?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...+${dupPNs.length-8} daha</div>`:'')}
     </div>
 
-    <div class="dash-card"><div class="dash-card-title">Jira Takibi</div>
-      <div class="dash-big" style="color:${withJira===total?'var(--ok)':'var(--warn)'}">${total?Math.round(withJira/total*100):0}%</div>
-      <div class="dash-sub" style="margin-bottom:10px">${withJira}/${total} parçada Jira key var</div>
-      ${noJira.length===0?'<div style="color:var(--ok);font-size:11px">Tüm parçalar takip altında</div>':
-        noJira.slice(0,6).map(n=>`<div class="dash-list-item"><div class="dash-warn-dot"></div><span style="flex:1">${n.name}</span><span class="cmp-pn">${n.partNo||'—'}</span></div>`).join('')+
-        (noJira.length>6?`<div style="font-size:9px;color:var(--tx4);padding-top:4px">...+${noJira.length-6} daha</div>`:'')}
-    </div>
-
     ${_dashMatchCard(sys, flat)}
     ${_dashExtraCols(sys, flatFull)}
   </div></div>`;
@@ -4097,7 +4035,7 @@ function _dashExtraCols(sys, flatFull) {
   // and treat high-cardinality-friendly ones
   const customKeys = [];
   if (flatFull.length > 0) {
-    const skip = new Set(['id','name','partNo','serialNo','qty','jiraKey','children','_depth','_extra','_oid','_path']);
+    const skip = new Set(['id','name','partNo','qty','children','_depth','_extra','_oid','_path']);
     const sample = flatFull[0];
     Object.keys(sample).forEach(k=>{ if(!skip.has(k) && k.charAt(0)!=='_') customKeys.push(k); });
   }

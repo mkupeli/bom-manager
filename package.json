@@ -1,7 +1,7 @@
 {
   "name": "bom-manager",
-  "version": "2.10.0",
-  "description": "BOM Yönetim Sistemi - Jira Uyumlu, Excel Import, Görselleştirme (Offline)",
+  "version": "2.11.0",
+  "description": "BOM Yönetim Sistemi - Excel Import, Görselleştirme (Offline)",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
