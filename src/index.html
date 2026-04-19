@@ -1078,7 +1078,7 @@ function renderOrgChart(container) {
         onmouseleave="orgHoverNode('${p.nid}',false,'')">`;
       inner += `<rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
       const hasPN = !!p.node.partNo;
-      const hasQty = p.node.qty > 1;
+      const hasQty = true;
       // Dikey yerleşim: ad + parça no + adet satırına göre ortala
       const lineCount = 1 + (hasPN ? 1 : 0) + (hasQty ? 1 : 0);
       const totalH = lineCount * 16;
@@ -1087,8 +1087,10 @@ function renderOrgChart(container) {
       if (hasPN) inner += `<text x="${p.x+p.w/2}" y="${startY+16}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.partNo}</text>`;
       if (hasQty) {
         const qtyY = startY + (hasPN ? 32 : 16);
-        inner += `<rect x="${p.x+12}" y="${qtyY-11}" width="${p.w-24}" height="15" rx="4" fill="#f59e0b28" pointer-events="none"/>`;
-        inner += `<text x="${p.x+p.w/2}" y="${qtyY}" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty} adet</text>`;
+        const qtyColor = p.node.qty > 1 ? '#f59e0b' : '#6b7280';
+        const qtyBg = p.node.qty > 1 ? '#f59e0b28' : '#6b728018';
+        inner += `<rect x="${p.x+12}" y="${qtyY-11}" width="${p.w-24}" height="15" rx="4" fill="${qtyBg}" pointer-events="none"/>`;
+        inner += `<text x="${p.x+p.w/2}" y="${qtyY}" text-anchor="middle" fill="${qtyColor}" font-size="11" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty} adet</text>`;
       }
       if (p.canCollapse && !hasQty) {
         inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-4}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif" pointer-events="none">kapat</text>`;
@@ -3173,7 +3175,7 @@ function renderSunburst(container) {
     if (showLabel) {
       const maxChars = Math.max(4, Math.floor(sweep * (innerR + outerR) / 14));
       const lbl = truncate(child.name, maxChars);
-      const showQty = child.qty > 1;
+      const showQty = true;
       const subLines = (showSub && childCount > 0 ? 1 : 0) + (showSub && showQty ? 1 : 0);
       const nameOffY = subLines > 0 ? -(subLines * 8) : 0;
       labels += `<text x="${tx}" y="${ty + nameOffY}"
@@ -3184,7 +3186,7 @@ function renderSunburst(container) {
       if (showSub && showQty) {
         labels += `<text x="${tx}" y="${ty + nameOffY + 14}"
           text-anchor="middle" dominant-baseline="middle"
-          fill="#f59e0b" font-size="10" font-weight="700"
+          fill="${child.qty > 1 ? '#f59e0b' : 'rgba(255,255,255,0.5)'}" font-size="10" font-weight="700"
           font-family="JetBrains Mono,monospace" pointer-events="none">×${child.qty}</text>`;
       }
       if (showSub && childCount > 0) {
