@@ -969,7 +969,7 @@ function renderOrgChart(container) {
 
   const root = { name: sys.name, partNo: "", children: sys.children, _isRoot: true, id: 'org-root' };
   // Yukarıdan aşağıya layout: x = yatay konum, y = derinlik * satır yüksekliği
-  const nodeW = 200, nodeH = 56, gapX = 20, gapY = 60;
+  const nodeW = 200, nodeH = 64, gapX = 20, gapY = 68;
   const positions = [];
   const parentMap = {};
   let maxX = 0, maxY = 0;
@@ -1077,14 +1077,21 @@ function renderOrgChart(container) {
         onmouseenter="orgHoverNode('${p.nid}',true,'${tooltip.replace(/'/g,'&#39;')}')"
         onmouseleave="orgHoverNode('${p.nid}',false,'')">`;
       inner += `<rect class="org-node-rect" data-nid="${p.nid}" x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" ${isR?'filter="url(#glow)"':''}/>`;
-      inner += `<text x="${p.x+p.w/2}" y="${p.y+20}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${truncate(p.node.name,22)}</text>`;
-      if (p.node.partNo) inner += `<text x="${p.x+p.w/2}" y="${p.y+35}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.partNo}</text>`;
-      if (p.node.qty > 1) {
-        inner += `<rect x="${p.x+p.w-30}" y="${p.y-8}" width="34" height="16" rx="8" fill="#f59e0b" opacity="0.9" pointer-events="none"/>`;
-        inner += `<text x="${p.x+p.w-13}" y="${p.y+4}" text-anchor="middle" fill="#000" font-size="9" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty}</text>`;
+      const hasPN = !!p.node.partNo;
+      const hasQty = p.node.qty > 1;
+      // Dikey yerleşim: ad + parça no + adet satırına göre ortala
+      const lineCount = 1 + (hasPN ? 1 : 0) + (hasQty ? 1 : 0);
+      const totalH = lineCount * 16;
+      const startY = p.y + (p.h - totalH) / 2 + 12;
+      inner += `<text x="${p.x+p.w/2}" y="${startY}" text-anchor="middle" fill="${tc}" font-size="12" font-weight="600" font-family="IBM Plex Sans,sans-serif" pointer-events="none">${truncate(p.node.name,22)}</text>`;
+      if (hasPN) inner += `<text x="${p.x+p.w/2}" y="${startY+16}" text-anchor="middle" fill="${sc}" font-size="10" font-family="JetBrains Mono,monospace" pointer-events="none">${p.node.partNo}</text>`;
+      if (hasQty) {
+        const qtyY = startY + (hasPN ? 32 : 16);
+        inner += `<rect x="${p.x+12}" y="${qtyY-11}" width="${p.w-24}" height="15" rx="4" fill="#f59e0b28" pointer-events="none"/>`;
+        inner += `<text x="${p.x+p.w/2}" y="${qtyY}" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700" font-family="JetBrains Mono,monospace" pointer-events="none">×${p.node.qty} adet</text>`;
       }
-      if (p.canCollapse) {
-        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-3}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif" pointer-events="none">kapat</text>`;
+      if (p.canCollapse && !hasQty) {
+        inner += `<text x="${p.x+p.w/2}" y="${p.y+p.h-4}" text-anchor="middle" fill="#10b981" font-size="8" font-family="IBM Plex Sans,sans-serif" pointer-events="none">kapat</text>`;
       }
       inner += `</g>`;
     }
@@ -3166,13 +3173,22 @@ function renderSunburst(container) {
     if (showLabel) {
       const maxChars = Math.max(4, Math.floor(sweep * (innerR + outerR) / 14));
       const lbl = truncate(child.name, maxChars);
-      labels += `<text x="${tx}" y="${ty - (showSub && childCount > 0 ? 7 : 0)}"
+      const showQty = child.qty > 1;
+      const subLines = (showSub && childCount > 0 ? 1 : 0) + (showSub && showQty ? 1 : 0);
+      const nameOffY = subLines > 0 ? -(subLines * 8) : 0;
+      labels += `<text x="${tx}" y="${ty + nameOffY}"
         text-anchor="middle" dominant-baseline="middle"
         fill="#fff" font-size="${sweep>0.35?12:10}" font-weight="600"
         font-family="IBM Plex Sans,sans-serif" pointer-events="none"
         style="text-shadow:0 1px 4px rgba(0,0,0,.9)">${lbl}</text>`;
+      if (showSub && showQty) {
+        labels += `<text x="${tx}" y="${ty + nameOffY + 14}"
+          text-anchor="middle" dominant-baseline="middle"
+          fill="#f59e0b" font-size="10" font-weight="700"
+          font-family="JetBrains Mono,monospace" pointer-events="none">×${child.qty}</text>`;
+      }
       if (showSub && childCount > 0) {
-        labels += `<text x="${tx}" y="${ty + 9}"
+        labels += `<text x="${tx}" y="${ty + nameOffY + (showQty ? 26 : 14)}"
           text-anchor="middle" dominant-baseline="middle"
           fill="rgba(255,255,255,0.55)" font-size="9"
           font-family="JetBrains Mono,monospace" pointer-events="none">${childCount} alt</text>`;
