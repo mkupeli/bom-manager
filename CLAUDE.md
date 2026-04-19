@@ -29,6 +29,16 @@ start.bat
 - Commit mesajı: `feat: açıklama — vX.X.X` veya `fix: açıklama — vX.X.X`
 - CLAUDE.md içindeki "Mevcut Versiyon" satırını da güncelle
 
+### Versiyon değişikliğinde kontrol listesi
+
+Her versiyon artışında şu iki yerin **birbiriyle eşleştiğini** doğrula:
+
+1. `package.json` → `"version"` alanı
+2. `src/index.html` → `BOM Manager vX.X` ifadesinin geçtiği tüm yerler  
+   (arama: `grep -i "bom manager v" src/index.html`)
+
+Eşleşmiyorsa `src/index.html` içindeki tüm eski versiyon etiketlerini güncelle.
+
 ## Git
 
 - Repo: https://github.com/mkupeli/bom-manager
