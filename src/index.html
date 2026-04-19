@@ -3946,16 +3946,18 @@ function renderDSM(container) {
   const extraCols = sys._extraCols || [];
   if (extraCols.length > 0) {
     extraCols.forEach(colName => {
-      // Her alt sistem için bu sütunun değer dağılımını topla
+      // Her alt sistem için bu sütunun değer dağılımını topla (kendisi + tüm torunları)
       const sysData = sys.children.map((c, i) => {
-        const all = flatSub(c.children || [], 1);
+        const all = [c, ...flatSub(c.children || [], 1)];
         const dist = {};
+        let filled = 0;
         all.forEach(n => {
           const v = String((n._extra && n._extra[colName] != null ? n._extra[colName] : '')).trim();
           const key = v || '(boş)';
           dist[key] = (dist[key] || 0) + 1;
+          if (v) filled++;
         });
-        return { name: c.name, partNo: c.partNo || '', color: palette[i % palette.length], dist, total: all.length };
+        return { name: c.name, partNo: c.partNo || '', color: palette[i % palette.length], dist, total: all.length, filled };
       });
 
       // Tüm benzersiz değerleri frekansa göre sırala
@@ -3964,9 +3966,9 @@ function renderDSM(container) {
       const uniqueVals = Object.entries(globalDist).sort((a, b) => b[1] - a[1]).map(e => e[0]);
       const valColors = ['#6366f1','#10b981','#f59e0b','#ec4899','#3b82f6','#8b5cf6','#14b8a6','#f97316','#06b6d4','#84cc16'];
 
-      html += `<div style="margin-top:28px">
-        <div style="font-size:10px;color:var(--tx3);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px">
-          ${colName} — Alt Sistem Dağılımı
+      html += `<div style="margin-top:32px;border-top:1px solid var(--brd);padding-top:20px">
+        <div style="font-size:10px;color:var(--ac2);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px">
+          📊 ${colName} — Alt Sistem Dağılımı
         </div>
         <table style="border-collapse:collapse;font-size:11px;font-family:'IBM Plex Sans',sans-serif;width:100%">
           <thead><tr>
