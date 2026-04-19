@@ -31,11 +31,13 @@ start.bat
 
 ### Versiyon değişikliğinde kontrol listesi
 
-Her versiyon artışında şu iki yerin **birbiriyle eşleştiğini** doğrula:
+Her versiyon artışında şu **üç yerin** birbiriyle eşleştiğini doğrula:
 
 1. `package.json` → `"version"` alanı
 2. `src/index.html` → `BOM Manager vX.X` ifadesinin geçtiği tüm yerler  
    (arama: `grep -i "bom manager v" src/index.html`)
+3. `src/index.html` → titlebar etiketi: `BOM MANAGER vX.X`  
+   (arama: `grep -i "titlebar-text" src/index.html`)
 
 Eşleşmiyorsa `src/index.html` içindeki tüm eski versiyon etiketlerini güncelle.
 
